@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Palet E-Paper Monokrom Grayscale -->
+    <color name="epaper_paper_white">#F0F2EB</color>
+    <color name="epaper_surface">#E4E7DD</color>
+    <color name="epaper_subtle">#D8DCD0</color>
+    <color name="epaper_carbon_black">#111210</color>
+    <color name="epaper_charcoal">#484B45</color>
+    <color name="epaper_muted">#797D74</color>
+</resources>

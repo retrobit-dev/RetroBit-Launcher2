@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">RetroBit Launcher</string>
+    <string name="search_hint">> Search apps or eval math (e.g. 45*12)...</string>
+    <string name="deck_os_version">RETROBIT_OS v2.5.0</string>
+</resources>
