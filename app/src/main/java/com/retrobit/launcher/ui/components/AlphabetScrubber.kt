@@ -45,7 +45,7 @@ fun AlphabetScrubber(
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                             onLetterSelected(letter)
                         },
-                        onDrag = { change, _ ->
+                        onVerticalDrag = { change, _ ->
                             val index = ((change.position.y / size.height) * alphabet.size).toInt().coerceIn(0, alphabet.size - 1)
                             val letter = alphabet[index]
                             if (letter != activeLetter) {

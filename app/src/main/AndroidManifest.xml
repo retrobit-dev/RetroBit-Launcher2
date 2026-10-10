@@ -40,6 +40,10 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
+                <!-- LAUNCHER wajib ada supaya ikon RetroBit muncul di app drawer
+                     launcher lain (tanpa ini aplikasi terlihat "tidak ada"
+                     setelah diinstall) -->
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 

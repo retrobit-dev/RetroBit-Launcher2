@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.retrobit.launcher.data.AppModel
 import com.retrobit.launcher.data.AppRepository
+import com.retrobit.launcher.data.NotificationMonitorService
 import com.retrobit.launcher.ui.components.*
 import com.retrobit.launcher.ui.theme.LocalRetroBitColors
 import com.retrobit.launcher.ui.theme.RetroBitThemeMode
@@ -246,7 +247,7 @@ fun MainLauncherScreen(
                     .fillMaxWidth()
             ) {
                 // KONDISI 1: STANDBY STEALTH BANNER (Muncul saat daftar aplikasi otomatis tersembunyi)
-                AnimatedVisibility(
+                androidx.compose.animation.AnimatedVisibility(
                     visible = !isAppListRevealed,
                     enter = fadeIn(),
                     exit = fadeOut()
@@ -305,7 +306,7 @@ fun MainLauncherScreen(
                 }
 
                 // KONDISI 2: DAFTAR APLIKASI (MUNCUL SAAT DISENTUH)
-                AnimatedVisibility(
+                androidx.compose.animation.AnimatedVisibility(
                     visible = isAppListRevealed,
                     enter = fadeIn() + expandVertically(),
                     exit = fadeOut() + shrinkVertically()
@@ -479,6 +480,34 @@ fun MainLauncherScreen(
         EpaperRefreshEffect(
             isRefreshing = isEpaperRefreshing,
             onRefreshFinished = { isEpaperRefreshing = false }
+        )
+    }
+}
+
+/**
+ * Tombol toolbar kecil bergaya chassis cyberdeck untuk barisan kontrol bawah.
+ */
+@Composable
+fun DeckButton(
+    label: String,
+    onClick: () -> Unit
+) {
+    val colors = LocalRetroBitColors.current
+    Box(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .background(colors.background)
+            .border(1.dp, colors.border, RoundedCornerShape(2.dp))
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            fontSize = 8.5.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace,
+            color = colors.inkPrimary,
+            letterSpacing = 0.5.sp
         )
     }
 }
