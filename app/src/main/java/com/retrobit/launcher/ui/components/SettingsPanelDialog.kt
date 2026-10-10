@@ -315,11 +315,12 @@ fun SettingsPanelDialog(
                         SectionLabel("HOME GESTURES")
                         ToggleSetting(
                             "DOUBLE TAP TO LOCK PHONE",
-                            "Requires explicit Android Device Admin activation; RetroBit requests only FORCE LOCK.",
+                            "Requires Android approval for Device Admin; RetroBit requests only FORCE LOCK.",
                             doubleTapLockEnabled
                         ) {
                             doubleTapLockEnabled = it
                             store.doubleTapToLockEnabled = it
+                            if (it && !deviceAdminActive) onActivateDeviceAdmin()
                         }
                         SettingAction(
                             title = "SWIPE UP // ${swipeUpAction.label}",
@@ -340,12 +341,20 @@ fun SettingsPanelDialog(
                             }
                         )
                         SettingAction(
-                            title = if (deviceAdminActive) "DEVICE ADMIN: ACTIVE" else "ACTIVATE DEVICE ADMIN",
-                            detail = if (deviceAdminActive) "Double-tap the gesture pad to lock the phone. You can remove approval in Android settings." else "Android will ask for approval before double-tap can lock the phone.",
-                            onClick = onActivateDeviceAdmin
+                            title = if (deviceAdminActive) "DEVICE ADMIN APPROVAL: GRANTED" else "REQUEST DEVICE ADMIN APPROVAL",
+                            detail = if (deviceAdminActive) "Double-tap can lock the phone. Use the revoke action below to remove approval." else "Tap to show Android's system approval screen for the FORCE LOCK policy.",
+                            onClick = {
+                                if (deviceAdminActive) {
+                                    statusMessage = "Device Admin approval is already granted."
+                                } else {
+                                    doubleTapLockEnabled = true
+                                    store.doubleTapToLockEnabled = true
+                                    onActivateDeviceAdmin()
+                                }
+                            }
                         )
                         if (deviceAdminActive) {
-                            SettingAction("REMOVE DEVICE ADMIN APPROVAL", "Opens Android's confirmation screen.", onRemoveDeviceAdmin)
+                            SettingAction("REVOKE DEVICE ADMIN APPROVAL", "Opens Android Security settings so you can deactivate RetroBit.", onRemoveDeviceAdmin)
                         }
                         Text("Gesture pad: double tap can lock the phone; swipe actions are selected above; long press edits the home screen.", color = colors.inkMuted, fontSize = 8.sp)
                         SectionLabel("PRODUCTIVITY")

@@ -227,8 +227,7 @@ fun MainLauncherScreen(
         searchQuery = ""
     }
 
-    fun lockPhoneFromGesture() {
-        if (!featureStore.doubleTapToLockEnabled) return
+    fun requestDeviceLock() {
         if (!DeviceLockController.isAdminActive(context)) {
             isDeviceAdminPromptOpen = true
         } else if (!DeviceLockController.lockNow(context)) {
@@ -242,7 +241,7 @@ fun MainLauncherScreen(
             HomeGestureAction.QUICK_CONTROLS -> isQuickControlsOpen = true
             HomeGestureAction.EDIT_HOME -> isHomeEditing = !isHomeEditing
             HomeGestureAction.MATRIX_RAIN -> isMatrixRainOpen = true
-            HomeGestureAction.LOCK_PHONE -> lockPhoneFromGesture()
+            HomeGestureAction.LOCK_PHONE -> requestDeviceLock()
             HomeGestureAction.NONE -> Unit
         }
     }
@@ -694,7 +693,9 @@ fun MainLauncherScreen(
                     doubleTapEnabled = featureStore.doubleTapToLockEnabled,
                     swipeUpLabel = featureStore.homeSwipeUpAction.label,
                     swipeDownLabel = featureStore.homeSwipeDownAction.label,
-                    onDoubleTap = { lockPhoneFromGesture() },
+                    onDoubleTap = {
+                        if (featureStore.doubleTapToLockEnabled) requestDeviceLock()
+                    },
                     onLongPress = { isHomeEditing = !isHomeEditing },
                     onSwipeUp = { performHomeGesture(featureStore.homeSwipeUpAction) },
                     onSwipeDown = { performHomeGesture(featureStore.homeSwipeDownAction) }
