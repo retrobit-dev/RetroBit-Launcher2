@@ -11,7 +11,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
 import com.retrobit.launcher.data.AppRepository
+import com.retrobit.launcher.data.LauncherFeatureStore
 import com.retrobit.launcher.ui.MainLauncherScreen
+import com.retrobit.launcher.ui.theme.PaletteCodec
 import com.retrobit.launcher.ui.theme.RetroBitLauncherTheme
 import com.retrobit.launcher.ui.theme.RetroBitThemeMode
 
@@ -33,13 +35,27 @@ class MainActivity : ComponentActivity() {
         })
 
         setContent {
-            var currentTheme by remember { mutableStateOf(RetroBitThemeMode.LIGHT_EINK) }
+            val featureStore = remember { LauncherFeatureStore(applicationContext) }
+            val initialTheme = remember {
+                runCatching { RetroBitThemeMode.valueOf(featureStore.themeModeName) }
+                    .getOrDefault(RetroBitThemeMode.LIGHT_EINK)
+            }
+            var currentTheme by remember { mutableStateOf(initialTheme) }
+            var customColors by remember {
+                mutableStateOf(featureStore.customPaletteJson?.let { PaletteCodec.parse(it) })
+            }
 
-            RetroBitLauncherTheme(themeMode = currentTheme) {
+            RetroBitLauncherTheme(themeMode = currentTheme, customColors = customColors) {
                 MainLauncherScreen(
                     repository = appRepository,
                     currentTheme = currentTheme,
-                    onThemeChange = { currentTheme = it }
+                    onThemeChange = {
+                        currentTheme = it
+                        featureStore.themeModeName = it.name
+                        featureStore.customPaletteJson = null
+                        customColors = null
+                    },
+                    onCustomPaletteChange = { customColors = it }
                 )
             }
         }

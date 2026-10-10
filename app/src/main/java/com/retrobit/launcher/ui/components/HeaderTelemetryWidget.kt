@@ -17,8 +17,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.retrobit.launcher.data.UsageStatsRepository
 import com.retrobit.launcher.ui.theme.LocalRetroBitColors
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -29,7 +32,11 @@ fun HeaderTelemetryWidget(
 ) {
     val colors = LocalRetroBitColors.current
     val context = LocalContext.current
+    val usageStats = remember(context) { UsageStatsRepository(context) }
+    val networkStatus = rememberNetworkStatus()
 
+    var usageToday by remember { mutableStateOf("—") }
+    var hasUsageAccess by remember { mutableStateOf(usageStats.hasUsageAccess()) }
     var currentTime by remember { mutableStateOf("") }
     var currentSeconds by remember { mutableStateOf("") }
     var currentDate by remember { mutableStateOf("") }
@@ -57,6 +64,18 @@ fun HeaderTelemetryWidget(
                 ramStats = String.format(Locale.US, "%.1f/%.1fGB", used, total)
             }
             delay(1000)
+        }
+    }
+
+    LaunchedEffect(usageStats) {
+        while (true) {
+            val result = withContext(Dispatchers.IO) {
+                val allowed = usageStats.hasUsageAccess()
+                allowed to if (allowed) usageStats.formatDuration(usageStats.totalUsageTodayMillis()) else "PERMISSION NEEDED"
+            }
+            hasUsageAccess = result.first
+            usageToday = result.second
+            delay(60_000)
         }
     }
 
@@ -102,7 +121,7 @@ fun HeaderTelemetryWidget(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "[NET: 5G-MESH // SYS: OK]",
+                text = networkStatus,
                 fontSize = 9.sp,
                 color = colors.inkSecondary,
                 fontWeight = FontWeight.Bold
@@ -164,7 +183,7 @@ fun HeaderTelemetryWidget(
             color = colors.inkSecondary
         )
 
-        // Digital Wellbeing / Detox Telemetry Row (Top Launcher Feature)
+        // Genuine usage data; tap the status to grant Android's Usage Access permission.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -172,22 +191,23 @@ fun HeaderTelemetryWidget(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "DETOX: 1h 38m TODAY",
+                text = "USAGE TODAY: $usageToday",
                 fontSize = 8.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = colors.inkPrimary
             )
             Text(
-                text = "UNLOCKS: 14",
+                text = if (hasUsageAccess) "TRACKING: ON" else "GRANT USAGE ACCESS",
                 fontSize = 8.5.sp,
                 fontWeight = FontWeight.Bold,
-                color = colors.inkSecondary
-            )
-            Text(
-                text = "AGENDA: 16:00 SYNC",
-                fontSize = 8.5.sp,
-                fontWeight = FontWeight.Bold,
-                color = colors.inkPrimary
+                color = colors.inkSecondary,
+                modifier = Modifier.clickable {
+                    try {
+                        usageStats.openUsageAccessSettings()
+                    } catch (_: Exception) {
+                        // Some OEMs do not expose the dedicated Usage Access screen.
+                    }
+                }
             )
         }
 

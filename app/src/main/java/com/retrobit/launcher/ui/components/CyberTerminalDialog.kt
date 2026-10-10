@@ -28,10 +28,16 @@ import com.retrobit.launcher.ui.theme.RetroBitThemeMode
 fun CyberTerminalDialog(
     onDismiss: () -> Unit,
     onTriggerRefresh: () -> Unit,
-    onChangeTheme: (RetroBitThemeMode) -> Unit
+    onChangeTheme: (RetroBitThemeMode) -> Unit,
+    onShowMatrixRain: () -> Unit = {},
+    onOpenQuickControls: () -> Unit = {},
+    onOpenTodo: () -> Unit = {},
+    onOpenCalendar: () -> Unit = {},
+    onConfigureWeather: () -> Unit = {}
 ) {
     val colors = LocalRetroBitColors.current
     var inputCmd by remember { mutableStateOf("") }
+    val konamiInput = remember { mutableStateListOf<String>() }
     val history = remember {
         mutableStateListOf(
             "> RETROBIT_OS [v2.5.0-pro]",
@@ -110,18 +116,43 @@ fun CyberTerminalDialog(
                         val trimmed = inputCmd.trim()
                         if (trimmed.isNotEmpty()) {
                             history.add("> $trimmed")
-                            val parts = trimmed.lowercase().split(" ")
-                            when (parts[0]) {
-                                "help" -> history.add("< CMDS: help, refresh, calc [expr], screentime, theme [mode], clear")
+                            val sequence = listOf("UP", "UP", "DOWN", "DOWN", "LEFT", "RIGHT", "LEFT", "RIGHT", "B", "A")
+                            val keyAliases = mapOf("↑" to "UP", "↓" to "DOWN", "←" to "LEFT", "→" to "RIGHT")
+                            trimmed.uppercase().split(Regex("[\\s,]+"))
+                                .mapNotNull { token -> keyAliases[token] ?: token.takeIf { it in setOf("UP", "DOWN", "LEFT", "RIGHT", "A", "B") } }
+                                .forEach { token ->
+                                    konamiInput.add(token)
+                                    while (konamiInput.size > sequence.size) konamiInput.removeAt(0)
+                                }
+                            val konamiActivated = konamiInput.toList() == sequence
+                            if (konamiActivated) {
+                                onShowMatrixRain()
+                                history.add("< KONAMI CODE ACCEPTED. MATRIX MODE ENGAGED.")
+                                konamiInput.clear()
+                            } else {
+                                val parts = trimmed.lowercase().split(Regex("\\s+"))
+                                when (parts[0]) {
+                                "help" -> history.add("< CMDS: help, refresh, calc [expr], screentime, theme [mode], tiles, todo, calendar, weather, matrix, clear")
                                 "clear" -> {
                                     history.clear()
                                     history.add("> BUFFER CLEARED.")
                                 }
                                 "refresh" -> {
                                     onTriggerRefresh()
-                                    history.add("< E-Paper hardware refresh cycle triggered.")
+                                    history.add("< E-Paper refresh cycle triggered.")
                                 }
-                                "screentime" -> history.add("< TOTAL USAGE TODAY: 1h 38m across 14 unlocks.")
+                                "matrix", "matrixrain", "konami", "secret" -> {
+                                    onShowMatrixRain()
+                                    history.add("< MATRIX EASTER EGG ACTIVATED.")
+                                }
+                                "tiles", "quick-settings" -> {
+                                    onOpenQuickControls()
+                                    history.add("< QUICK CONTROLS OPENED. RADIO CHANGES NEED SYSTEM CONFIRMATION.")
+                                }
+                                "todo" -> { onOpenTodo(); history.add("< TASK QUEUE OPENED.") }
+                                "calendar" -> { onOpenCalendar(); history.add("< CALENDAR OPENED.") }
+                                "weather" -> { onConfigureWeather(); history.add("< WEATHER LOCATION SETTINGS OPENED.") }
+                                "screentime" -> history.add("< Open Usage Access in Android settings to view real screen-time totals.")
                                 "calc" -> {
                                     history.add("< Inline calc active in search bar. e.g. '> 45*12'")
                                 }
@@ -137,6 +168,7 @@ fun CyberTerminalDialog(
                                     } else history.add("< Usage: theme [light | dark | pocket | stark]")
                                 }
                                 else -> history.add("< COMMAND NOT FOUND: '$trimmed'. Type 'help'.")
+                                }
                             }
                             inputCmd = ""
                         }

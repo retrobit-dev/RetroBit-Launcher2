@@ -24,7 +24,7 @@
 5. **Interactive Retro Media Player Widget (Cassette Deck):**
    - Kontrol musik langsung di home screen dengan animasi pita kaset `▰▱`, tombol Play/Pause/Skip, dan progress bar ASCII `[████████░░░░░░░░░░]`.
 6. **Digital Wellbeing & Screentime Counter:**
-   - Monitor waktu penggunaan layar (*screen time*) dan jumlah unlock harian langsung di bagian atas layar (`DETOX: 1h 38m TODAY // 14 UNLOCKS`).
+   - Waktu penggunaan layar hari ini dibaca dari Android Usage Stats dan tampil di bagian atas; waktu per aplikasi, Focus Mode, dan timer harian tersedia di Settings. Tidak menampilkan angka unlock yang tidak disediakan Android.
 7. **Category Tag Filter Chips:**
    - Filter cepat menggunakan tag: `#ALL`, `#FAV`, `#COMM`, `#NET`, `#DATA`, `#SYS`, `#MEDIA`, `#TOOL`, `#HIDDEN`.
 8. **Inline Math Calculator di Search Bar:**
@@ -47,6 +47,26 @@
     - Tambahkan jeda sadar 5–15 detik sebelum membuka aplikasi yang mencandu (seperti media sosial/game), meredakan impuls refleks membuka aplikasi tanpa sadar.
 15. **Auto-Build APK via GitHub Actions CI/CD:**
     - File `.github/workflows/build-apk.yml` telah disertakan. Cukup push proyek ini ke repositori GitHub Anda, dan GitHub Actions akan secara otomatis mengompilasi dan menghasilkan file `.apk` siap download langsung ke smartphone tanpa perlu menginstal Android Studio di komputer Anda!
+
+---
+
+## 🧩 Feature Center & Integrasi Perangkat
+
+Buka **SETTINGS** di toolbar bawah untuk panel lima tab: `PROFILE`, `WELLBEING`, `APPEARANCE`, `SERVICES`, dan `TOOLS`.
+
+- **Voice Command (Indonesia / English):** tombol `MIC` di samping pencarian. Perintah meliputi `cari/search`, `buka/open [nama aplikasi]`, `tema/theme [light|dark|pocket|stark]`, `tampilkan aplikasi`, `refresh`, `matrix`, `tiles`, `todo`, `calendar`, dan `help`. Pilih bahasa `ID` atau `EN` di samping tombol mic.
+- **Digital Wellbeing:** total waktu layar dan waktu per aplikasi dibaca dari Android Usage Stats. Aktifkan *Usage Access* di tab `WELLBEING`; di sana juga tersedia Focus Mode (hanya favorit) dan batas harian aplikasi 15/30/60 menit.
+- **Music Player:** widget menghubungkan `MediaSession` aktif dan menyediakan play/pause/previous/next. Izinkan Notification Access agar Android mengizinkan akses ke sesi media.
+- **Weather:** widget cuaca mengambil data aktual dari Open-Meteo tanpa API key. Ketuk widget untuk mengatur kota.
+- **Network Monitor & Quick Controls:** status koneksi dan RSSI Wi-Fi ditampilkan secara aktual. `tiles` pada terminal membuka kontrol volume, brightness, flashlight, Wi-Fi, Bluetooth, dan airplane mode. Android mewajibkan konfirmasi di Settings untuk perubahan Wi-Fi/Bluetooth/airplane; perubahan brightness memerlukan special access.
+- **Profiles:** simpan dan tukar snapshot Personal/Work/Gaming untuk favorit, aplikasi tersembunyi, dan alias di perangkat lokal.
+- **Search:** pencarian fuzzy berperingkat tetap bekerja bersama filter kategori.
+- **Easter eggs:** buka Matrix Rain dari tab `TOOLS` atau perintah `matrix`. Kode Konami dapat dimasukkan sebagai perintah terminal berurutan: `UP UP DOWN DOWN LEFT RIGHT LEFT RIGHT B A`.
+- **Calendar & Todo:** tampilan kalender bulan/hari dapat membaca event perangkat setelah izin Calendar diberikan; todo disimpan secara lokal.
+- **Appearance:** empat tema bawaan, ukuran ikon yang bisa diatur, dukungan icon pack format ADW `appfilter.xml`, dan impor palet JSON. Format palet yang diterima terlihat di `APPEARANCE`.
+- **Cyberdeck Lockscreen:** overlay PIN lokal opsional. Ini hanya tampilan pengunci di dalam launcher dan **tidak menggantikan** lockscreen/keamanan Android.
+
+Fitur yang memerlukan akses khusus hanya bekerja setelah pengguna memberi izin. Wi-Fi, Bluetooth, dan mode pesawat tidak dapat diubah diam-diam oleh aplikasi biasa di Android modern; launcher membuka panel Settings yang sesuai.
 
 ---
 

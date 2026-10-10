@@ -13,7 +13,7 @@ jobs:
     # label ubuntu-latest dijadwalkan migrasi ke Ubuntu 26 per 19 Okt 2026.
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - name: Checkout Code Repository
@@ -45,19 +45,6 @@ jobs:
           name: build-log
           path: build-output.log
           retention-days: 14
-
-      # Sandbox tidak bisa download artifact (blob storage diblokir),
-      # jadi kalau gagal, push ringkasan error ke branch ci-debug.
-      - name: Publish failure log to ci-debug branch
-        if: failure()
-        run: |
-          { echo "=== MATCHED ERRORS ==="; grep -E "^e: |error:|FAILURE|Caused by|> Task .* FAILED|Execution failed|What went wrong" build-output.log | head -120; echo; echo "=== LAST 150 LINES ==="; tail -150 build-output.log; } > ci-error.log || true
-          git config user.name "retrobit-ci"
-          git config user.email "retrobit-ci@users.noreply.github.com"
-          git checkout -B ci-debug
-          git add -f ci-error.log
-          git commit -m "CI: publish build error log" -q || true
-          git push -f origin ci-debug
 
       - name: Upload Debug APK Artifact
         if: success()

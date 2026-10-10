@@ -9,6 +9,14 @@
 
     <!-- Haptic feedback getaran mekanik -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
 
     <!-- Optional: Pembacaan usage stats untuk digital wellbeing timer -->
     <uses-permission

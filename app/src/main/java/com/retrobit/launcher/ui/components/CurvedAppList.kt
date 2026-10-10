@@ -40,6 +40,7 @@ fun NiagaraCurvedAppList(
     selectedCategory: String,
     listState: LazyListState,
     isCurved: Boolean,
+    iconSizeDp: Float = 42f,
     onAppClick: (AppModel) -> Unit,
     onAppLongClick: (AppModel) -> Unit,
     modifier: Modifier = Modifier
@@ -63,6 +64,7 @@ fun NiagaraCurvedAppList(
                     app = app,
                     index = index,
                     isCurved = isCurved,
+                    iconSizeDp = iconSizeDp,
                     onClick = { onAppClick(app) },
                     onLongClick = { onAppLongClick(app) }
                 )
@@ -94,6 +96,7 @@ fun NiagaraCurvedAppList(
                     app = app,
                     index = index,
                     isCurved = isCurved,
+                    iconSizeDp = iconSizeDp,
                     onClick = { onAppClick(app) },
                     onLongClick = { onAppLongClick(app) }
                 )
@@ -134,6 +137,7 @@ fun AppListItem(
     app: AppModel,
     index: Int,
     isCurved: Boolean,
+    iconSizeDp: Float = 42f,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -161,7 +165,7 @@ fun AppListItem(
         // App Icon
         Box(
             modifier = Modifier
-                .size(26.dp)
+                .size(iconSizeDp.dp)
                 .border(1.dp, colors.border, RoundedCornerShape(2.dp))
                 .background(colors.surface),
             contentAlignment = Alignment.Center
@@ -174,7 +178,7 @@ fun AppListItem(
                 Image(
                     bitmap = monochromeBitmap.asImageBitmap(),
                     contentDescription = app.displayLabel,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size((iconSizeDp * 0.72f).dp)
                 )
             } else {
                 Text(

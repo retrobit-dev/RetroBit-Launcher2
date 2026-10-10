@@ -16,9 +16,10 @@ val LocalRetroBitColors = staticCompositionLocalOf { LightEInkPalette }
 @Composable
 fun RetroBitLauncherTheme(
     themeMode: RetroBitThemeMode = RetroBitThemeMode.LIGHT_EINK,
+    customColors: RetroBitColors? = null,
     content: @Composable () -> Unit
 ) {
-    val colors = when (themeMode) {
+    val colors = customColors ?: when (themeMode) {
         RetroBitThemeMode.LIGHT_EINK -> LightEInkPalette
         RetroBitThemeMode.DARK_EINK -> DarkEInkPalette
         RetroBitThemeMode.POCKET_90S -> Pocket90sPalette

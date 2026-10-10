@@ -18,6 +18,7 @@ class AppRepository(private val context: Context) {
 
     private val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
     private val prefs: SharedPreferences = context.getSharedPreferences("retrobit_launcher_prefs", Context.MODE_PRIVATE)
+    private val iconPackManager = IconPackManager(context)
 
     companion object {
         private const val PREF_FAVORITES = "pinned_favorites"
@@ -110,10 +111,13 @@ class AppRepository(private val context: Context) {
     suspend fun loadInstalledApps(): List<AppModel> = withContext(Dispatchers.IO) {
         val userHandle: UserHandle = Process.myUserHandle()
         val activities = launcherApps.getActivityList(null, userHandle)
+        val usageStatsRepository = UsageStatsRepository(context)
+        val usageByPackage = usageStatsRepository.todayUsageByPackage()
         val favorites = getFavoritePackageNames()
         val hidden = getHiddenPackageNames()
         val customNames = getCustomLabels()
         val detoxApps = getDetoxRestrictedPackageNames()
+        val selectedIconPack = prefs.getString("feature_icon_pack", null)
 
         activities.map { info ->
             val pkg = info.applicationInfo.packageName
@@ -138,12 +142,12 @@ class AppRepository(private val context: Context) {
                 componentName = compName,
                 originalLabel = original,
                 customLabel = custom,
-                icon = info.getBadgedIcon(0),
+                icon = iconPackManager.iconFor(pkg, compName, selectedIconPack) ?: info.getBadgedIcon(0),
                 isFavorite = favorites.contains(pkg),
                 isHidden = hidden.contains(pkg),
                 isDetoxRestricted = detoxApps.contains(pkg),
                 categoryTag = catTag,
-                screentimeText = "${(pkg.hashCode() % 45 + 5).coerceAtLeast(1)}m",
+                screentimeText = usageByPackage[pkg]?.let(usageStatsRepository::formatDuration) ?: "—",
                 subtext = "pkg://$pkg"
             )
         }.sortedBy { it.displayLabel.lowercase() }
@@ -184,7 +188,35 @@ class AppRepository(private val context: Context) {
         root.put("version", "2.5.0")
         root.put("favorites", JSONArray(getFavoritePackageNames()))
         root.put("hidden", JSONArray(getHiddenPackageNames()))
+        root.put("detoxRestricted", JSONArray(getDetoxRestrictedPackageNames()))
         root.put("labels", JSONObject(getCustomLabels()))
         return root.toString(2)
+    }
+
+    fun importBackupJson(content: String) {
+        val root = JSONObject(content)
+        fun readSet(key: String): Set<String> {
+            val array = root.optJSONArray(key) ?: JSONArray()
+            return buildSet {
+                for (index in 0 until array.length()) {
+                    val value = array.optString(index).trim()
+                    if (value.isNotEmpty()) add(value)
+                }
+            }
+        }
+        val labelsObject = root.optJSONObject("labels") ?: JSONObject()
+        val labels = mutableMapOf<String, String>()
+        val keys = labelsObject.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            val value = labelsObject.optString(key).trim()
+            if (value.isNotEmpty()) labels[key] = value
+        }
+        prefs.edit()
+            .putStringSet(PREF_FAVORITES, readSet("favorites"))
+            .putStringSet(PREF_HIDDEN, readSet("hidden"))
+            .putStringSet(PREF_DETOX_RESTRICTED, readSet("detoxRestricted"))
+            .putString(PREF_LABELS, JSONObject(labels as Map<*, *>).toString())
+            .apply()
     }
 }

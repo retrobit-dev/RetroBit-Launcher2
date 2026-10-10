@@ -13,27 +13,40 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import com.retrobit.launcher.data.AppModel
 import com.retrobit.launcher.data.AppRepository
+import com.retrobit.launcher.data.LauncherFeatureStore
 import com.retrobit.launcher.data.NotificationMonitorService
+import com.retrobit.launcher.data.UsageStatsRepository
 import com.retrobit.launcher.ui.components.*
 import com.retrobit.launcher.ui.theme.LocalRetroBitColors
+import com.retrobit.launcher.ui.theme.RetroBitColors
 import com.retrobit.launcher.ui.theme.RetroBitThemeMode
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun MainLauncherScreen(
     repository: AppRepository,
     currentTheme: RetroBitThemeMode,
-    onThemeChange: (RetroBitThemeMode) -> Unit
+    onThemeChange: (RetroBitThemeMode) -> Unit,
+    onCustomPaletteChange: (RetroBitColors?) -> Unit = {}
 ) {
     val colors = LocalRetroBitColors.current
+    val context = LocalContext.current
+    val featureStore = remember(context) { LauncherFeatureStore(context) }
+    val usageStatsRepository = remember(context) { UsageStatsRepository(context) }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
@@ -43,6 +56,8 @@ fun MainLauncherScreen(
     var selectedCategory by remember { mutableStateOf("ALL") }
     var isCurved by remember { mutableStateOf(true) }
     var isMediaVisible by remember { mutableStateOf(true) }
+    var isFocusModeEnabled by remember { mutableStateOf(featureStore.focusModeEnabled) }
+    var iconSizeDp by remember { mutableFloatStateOf(featureStore.iconSizeDp) }
 
     // ==========================================================================
     // STEALTH AUTO-HIDE ENGINE (Daftar aplikasi otomatis hilang & muncul saat disentuh)
@@ -68,8 +83,27 @@ fun MainLauncherScreen(
     var selectedAppForModal by remember { mutableStateOf<AppModel?>(null) }
     var appToRename by remember { mutableStateOf<AppModel?>(null) }
     var appPendingMindfulLaunch by remember { mutableStateOf<AppModel?>(null) }
+    var launchRestriction by remember { mutableStateOf<Pair<String, String>?>(null) }
     var isTerminalOpen by remember { mutableStateOf(false) }
+    var isMatrixRainOpen by remember { mutableStateOf(false) }
+    var isWeatherConfigOpen by remember { mutableStateOf(false) }
+    var isQuickControlsOpen by remember { mutableStateOf(false) }
+    var isSettingsOpen by remember { mutableStateOf(false) }
+    var isLockScreenOpen by remember { mutableStateOf(featureStore.lockscreenEnabled && featureStore.lockscreenPin != null) }
+    var isTodoOpen by remember { mutableStateOf(false) }
+    var isCalendarOpen by remember { mutableStateOf(false) }
     var isEpaperRefreshing by remember { mutableStateOf(false) }
+
+    val lifecycleOwner = context as? LifecycleOwner
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && featureStore.lockscreenEnabled && !featureStore.lockscreenPin.isNullOrBlank()) {
+                isLockScreenOpen = true
+            }
+        }
+        lifecycleOwner?.lifecycle?.addObserver(observer)
+        onDispose { lifecycleOwner?.lifecycle?.removeObserver(observer) }
+    }
 
     // Live Notification Listener Stream (Niagara Preview)
     val notificationsByPackage by NotificationMonitorService.activeNotifications.collectAsState()
@@ -84,6 +118,95 @@ fun MainLauncherScreen(
 
     LaunchedEffect(Unit) {
         refreshApps()
+    }
+
+    fun launchAppWithPolicies(app: AppModel, skipMindfulPause: Boolean = false) {
+        if (isFocusModeEnabled && !app.isFavorite) {
+            launchRestriction = "FOCUS MODE" to "Focus mode allows launching favorite apps only. Change favorites or disable Focus Mode in Settings."
+            return
+        }
+        scope.launch {
+            val limit = featureStore.getAppTimerMinutes(app.packageName)
+            val usageMillis = if (limit != null) withContext(Dispatchers.IO) {
+                if (!usageStatsRepository.hasUsageAccess()) null
+                else usageStatsRepository.todayUsageByPackage()[app.packageName] ?: 0L
+            } else null
+            if (limit != null && usageMillis == null) {
+                launchRestriction = "USAGE ACCESS REQUIRED" to "App timer for ${app.displayLabel} cannot be enforced until Usage Access is granted in Settings."
+                return@launch
+            }
+            if (limit != null && usageMillis!! >= limit * 60_000L) {
+                launchRestriction = "APP TIMER REACHED" to "${app.displayLabel} has used its $limit-minute daily limit. Adjust the timer in Settings to continue."
+                return@launch
+            }
+            if (app.isDetoxRestricted && !skipMindfulPause) appPendingMindfulLaunch = app
+            else repository.launchApp(app)
+        }
+    }
+
+    fun handleVoiceCommand(spoken: String) {
+        val command = spoken.trim().lowercase()
+        when {
+            command == "matrix" || command.contains("matrix rain") || command.contains("hujan matrix") -> {
+                isMatrixRainOpen = true
+            }
+            command in setOf("tiles", "quick settings", "kontrol cepat", "quick controls") -> {
+                isQuickControlsOpen = true
+            }
+            command in setOf("todo", "to do", "daftar tugas", "tugas") -> isTodoOpen = true
+            command in setOf("calendar", "kalender", "agenda") -> isCalendarOpen = true
+            command in setOf("settings", "pengaturan", "konfigurasi") -> isSettingsOpen = true
+            command in setOf("weather", "cuaca") -> isWeatherConfigOpen = true
+            command in setOf("help", "bantuan", "perintah") -> {
+                isTerminalOpen = true
+            }
+            command in setOf("refresh", "segarkan", "refresh layar") -> isEpaperRefreshing = true
+            command in setOf("show apps", "tampilkan aplikasi", "buka daftar aplikasi", "daftar aplikasi") -> {
+                searchQuery = ""
+                registerInteraction()
+            }
+            command.startsWith("cari ") || command.startsWith("search ") -> {
+                searchQuery = command.substringAfter(' ')
+                registerInteraction()
+            }
+            command.startsWith("tema ") || command.startsWith("theme ") -> {
+                val theme = command.substringAfter(' ')
+                val next = when (theme) {
+                    "terang", "light", "paper" -> RetroBitThemeMode.LIGHT_EINK
+                    "gelap", "dark", "onyx" -> RetroBitThemeMode.DARK_EINK
+                    "pocket", "gameboy" -> RetroBitThemeMode.POCKET_90S
+                    "stark", "noir" -> RetroBitThemeMode.STARK_1BIT
+                    else -> null
+                }
+                if (next != null) {
+                    onThemeChange(next)
+                    isEpaperRefreshing = true
+                } else {
+                    searchQuery = spoken
+                }
+            }
+            command.startsWith("buka ") || command.startsWith("open ") -> {
+                val appQuery = command.substringAfter(' ')
+                if (appQuery in setOf("daftar", "apps", "aplikasi")) {
+                    searchQuery = ""
+                    registerInteraction()
+                } else {
+                    val match = allApps
+                        .mapNotNull { app -> FuzzySearch.score(appQuery, app.displayLabel)?.let { app to it } }
+                        .maxByOrNull { it.second }
+                    if (match != null && match.second >= 250) {
+                        launchAppWithPolicies(match.first)
+                    } else {
+                        searchQuery = appQuery
+                        registerInteraction()
+                    }
+                }
+            }
+            else -> {
+                searchQuery = spoken
+                registerInteraction()
+            }
+        }
     }
 
     // Attach active notification preview to apps
@@ -107,7 +230,7 @@ fun MainLauncherScreen(
 
     val hiddenCount = remember(appsWithNotifications) { appsWithNotifications.count { it.isHidden } }
 
-    val filteredApps = remember(appsWithNotifications, searchQuery, selectedCategory) {
+    val filteredApps = remember(appsWithNotifications, searchQuery, selectedCategory, isFocusModeEnabled) {
         var pool = appsWithNotifications
 
         if (selectedCategory == "HIDDEN") {
@@ -121,12 +244,18 @@ fun MainLauncherScreen(
             }
         }
 
+        if (isFocusModeEnabled && selectedCategory != "HIDDEN") {
+            pool = pool.filter { it.isFavorite }
+        }
+
         if (searchQuery.isNotEmpty()) {
-            pool.filter {
-                it.displayLabel.contains(searchQuery, ignoreCase = true) ||
-                        it.packageName.contains(searchQuery, ignoreCase = true) ||
-                        it.categoryTag.contains(searchQuery, ignoreCase = true)
-            }
+            pool.mapNotNull { app ->
+                val score = listOf(app.displayLabel, app.packageName, app.categoryTag)
+                    .mapNotNull { FuzzySearch.score(searchQuery, it) }
+                    .maxOrNull()
+                score?.let { app to it }
+            }.sortedByDescending { it.second }
+                .map { it.first }
         } else pool
     }
 
@@ -150,6 +279,11 @@ fun MainLauncherScreen(
             // 1. Header Telemetry Widget
             HeaderTelemetryWidget(
                 onTriggerRefresh = { triggerRefreshCycle() }
+            )
+
+            WeatherWidget(
+                store = featureStore,
+                onConfigure = { isWeatherConfigOpen = true }
             )
 
             // 2. Retro Media Player Cassette Widget
@@ -238,6 +372,7 @@ fun MainLauncherScreen(
                         modifier = Modifier.clickable { searchQuery = "" }
                     )
                 }
+                VoiceCommandButton(onRecognized = ::handleVoiceCommand)
             }
 
             // 5. Main Body: Stealth Standby Mode vs Niagara Curved App List
@@ -323,13 +458,10 @@ fun MainLauncherScreen(
                             selectedCategory = selectedCategory,
                             listState = listState,
                             isCurved = isCurved,
+                            iconSizeDp = iconSizeDp,
                             onAppClick = { app ->
                                 registerInteraction()
-                                if (app.isDetoxRestricted) {
-                                    appPendingMindfulLaunch = app
-                                } else {
-                                    repository.launchApp(app)
-                                }
+                                launchAppWithPolicies(app)
                             },
                             onAppLongClick = { app ->
                                 registerInteraction()
@@ -387,28 +519,31 @@ fun MainLauncherScreen(
                     DeckButton(label = if (isCurved) "ARC: ON" else "ARC: OFF") {
                         isCurved = !isCurved
                     }
-                    DeckButton(label = "THEME") {
-                        val nextTheme = when (currentTheme) {
-                            RetroBitThemeMode.LIGHT_EINK -> RetroBitThemeMode.DARK_EINK
-                            RetroBitThemeMode.DARK_EINK -> RetroBitThemeMode.POCKET_90S
-                            RetroBitThemeMode.POCKET_90S -> RetroBitThemeMode.STARK_1BIT
-                            RetroBitThemeMode.STARK_1BIT -> RetroBitThemeMode.LIGHT_EINK
-                        }
-                        onThemeChange(nextTheme)
-                        triggerRefreshCycle()
-                    }
+                    DeckButton(label = "SETTINGS") { isSettingsOpen = true }
                 }
             }
         }
 
         // 7. Modals
+        launchRestriction?.let { (title, message) ->
+            LaunchRestrictionDialog(
+                title = title,
+                message = message,
+                onDismiss = { launchRestriction = null },
+                onOpenSettings = {
+                    launchRestriction = null
+                    isSettingsOpen = true
+                }
+            )
+        }
+
         selectedAppForModal?.let { app ->
             AppPopupDialog(
                 app = app,
                 onDismiss = { selectedAppForModal = null },
                 onLaunch = {
                     selectedAppForModal = null
-                    repository.launchApp(app)
+                    launchAppWithPolicies(app)
                 },
                 onRename = {
                     appToRename = app
@@ -445,7 +580,7 @@ fun MainLauncherScreen(
                 app = app,
                 onProceed = {
                     appPendingMindfulLaunch = null
-                    repository.launchApp(app)
+                    launchAppWithPolicies(app, skipMindfulPause = true)
                 },
                 onCancel = {
                     appPendingMindfulLaunch = null
@@ -472,8 +607,63 @@ fun MainLauncherScreen(
                 onChangeTheme = { newTheme ->
                     onThemeChange(newTheme)
                     triggerRefreshCycle()
-                }
+                },
+                onShowMatrixRain = { isMatrixRainOpen = true },
+                onOpenQuickControls = { isQuickControlsOpen = true },
+                onOpenTodo = { isTodoOpen = true },
+                onOpenCalendar = { isCalendarOpen = true },
+                onConfigureWeather = { isWeatherConfigOpen = true }
             )
+        }
+
+        if (isMatrixRainOpen) {
+            MatrixRainDialog(onDismiss = { isMatrixRainOpen = false })
+        }
+        if (isWeatherConfigOpen) {
+            WeatherCityDialog(
+                store = featureStore,
+                onDismiss = { isWeatherConfigOpen = false }
+            )
+        }
+        if (isQuickControlsOpen) {
+            QuickControlsDialog(onDismiss = { isQuickControlsOpen = false })
+        }
+        if (isTodoOpen) {
+            TodoDialog(store = featureStore, onDismiss = { isTodoOpen = false })
+        }
+        if (isCalendarOpen) {
+            CalendarDialog(onDismiss = { isCalendarOpen = false })
+        }
+        if (isSettingsOpen) {
+            SettingsPanelDialog(
+                repository = repository,
+                store = featureStore,
+                apps = allApps,
+                currentTheme = currentTheme,
+                focusModeEnabled = isFocusModeEnabled,
+                iconSizeDp = iconSizeDp,
+                onFocusModeChanged = {
+                    isFocusModeEnabled = it
+                    featureStore.focusModeEnabled = it
+                },
+                onIconSizeChanged = {
+                    iconSizeDp = it
+                    featureStore.iconSizeDp = it
+                },
+                onThemeChange = { onThemeChange(it); triggerRefreshCycle() },
+                onCustomPaletteChange = onCustomPaletteChange,
+                onRefreshApps = refreshApps,
+                onOpenQuickControls = { isSettingsOpen = false; isQuickControlsOpen = true },
+                onOpenTodo = { isSettingsOpen = false; isTodoOpen = true },
+                onOpenCalendar = { isSettingsOpen = false; isCalendarOpen = true },
+                onShowMatrix = { isSettingsOpen = false; isMatrixRainOpen = true },
+                onConfigureWeather = { isSettingsOpen = false; isWeatherConfigOpen = true },
+                onPreviewLockscreen = { isSettingsOpen = false; isLockScreenOpen = true },
+                onDismiss = { isSettingsOpen = false }
+            )
+        }
+        if (isLockScreenOpen) {
+            CyberLockScreenDialog(store = featureStore, onDismiss = { isLockScreenOpen = false })
         }
 
         // 8. E-Paper Refresh Effect Overlay
