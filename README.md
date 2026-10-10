@@ -54,6 +54,9 @@
 
 Buka **SETTINGS** di toolbar bawah untuk panel lima tab: `PROFILE`, `WELLBEING`, `APPEARANCE`, `SERVICES`, dan `TOOLS`.
 
+- **Home Workspace:** tab `HOME` menyediakan shortcut aplikasi dan stack widget Android yang tersusun vertikal serta dapat discroll. `+ APP` membuka pemilih aplikasi; `+ WIDGET` membuka pemilih widget sistem. Tekan `EDIT` atau tahan gesture pad untuk mengurutkan/menghapus item. Tahan aplikasi di drawer, lalu pilih `ADD TO HOME SCREEN` untuk menyematkannya.
+- **Gestures:** gesture pad menyediakan double-tap untuk mengunci ponsel, swipe-up untuk membuka drawer, swipe-down untuk Quick Controls, dan long-press untuk mode edit. Aksi swipe dapat diatur di tab `TOOLS`. Double-tap lock memerlukan aktivasi Device Admin secara eksplisit di Android; aplikasi hanya meminta kebijakan `FORCE LOCK`, tidak meminta hak wipe/manage perangkat.
+
 - **Voice Command (Indonesia / English):** tombol `MIC` di samping pencarian. Perintah meliputi `cari/search`, `buka/open [nama aplikasi]`, `tema/theme [light|dark|pocket|stark]`, `tampilkan aplikasi`, `refresh`, `matrix`, `tiles`, `todo`, `calendar`, dan `help`. Pilih bahasa `ID` atau `EN` di samping tombol mic.
 - **Digital Wellbeing:** total waktu layar dan waktu per aplikasi dibaca dari Android Usage Stats. Aktifkan *Usage Access* di tab `WELLBEING`; di sana juga tersedia Focus Mode (hanya favorit) dan batas harian aplikasi 15/30/60 menit.
 - **Music Player:** widget menghubungkan `MediaSession` aktif dan menyediakan play/pause/previous/next. Izinkan Notification Access agar Android mengizinkan akses ke sesi media.

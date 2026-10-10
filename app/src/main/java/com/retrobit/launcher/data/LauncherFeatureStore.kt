@@ -43,6 +43,95 @@ class LauncherFeatureStore(context: Context) {
         get() = prefs.getBoolean(KEY_LOCKSCREEN, false)
         set(value) { prefs.edit().putBoolean(KEY_LOCKSCREEN, value).apply() }
 
+    var doubleTapToLockEnabled: Boolean
+        get() = prefs.getBoolean(KEY_DOUBLE_TAP_LOCK, true)
+        set(value) { prefs.edit().putBoolean(KEY_DOUBLE_TAP_LOCK, value).apply() }
+
+    var homeSwipeUpEnabled: Boolean
+        get() = prefs.getBoolean(KEY_HOME_SWIPE_UP, true)
+        set(value) { prefs.edit().putBoolean(KEY_HOME_SWIPE_UP, value).apply() }
+
+    var homeSwipeDownEnabled: Boolean
+        get() = prefs.getBoolean(KEY_HOME_SWIPE_DOWN, true)
+        set(value) { prefs.edit().putBoolean(KEY_HOME_SWIPE_DOWN, value).apply() }
+
+    fun getHomeShortcutPackages(): List<String> = readStringList(KEY_HOME_SHORTCUTS)
+
+    fun toggleHomeShortcut(packageName: String): Boolean {
+        val shortcuts = getHomeShortcutPackages().toMutableList()
+        val isPinned = if (packageName in shortcuts) {
+            shortcuts.remove(packageName)
+            false
+        } else {
+            shortcuts.add(packageName)
+            true
+        }
+        writeStringList(KEY_HOME_SHORTCUTS, shortcuts)
+        return isPinned
+    }
+
+    fun addHomeShortcut(packageName: String) {
+        if (packageName.isBlank()) return
+        val shortcuts = getHomeShortcutPackages()
+        if (packageName !in shortcuts) writeStringList(KEY_HOME_SHORTCUTS, shortcuts + packageName)
+    }
+
+    fun removeHomeShortcut(packageName: String) {
+        writeStringList(KEY_HOME_SHORTCUTS, getHomeShortcutPackages().filterNot { it == packageName })
+    }
+
+    fun moveHomeShortcut(packageName: String, offset: Int) {
+        val shortcuts = getHomeShortcutPackages().toMutableList()
+        val from = shortcuts.indexOf(packageName)
+        if (from < 0) return
+        val to = (from + offset).coerceIn(0, shortcuts.lastIndex)
+        if (to == from) return
+        val item = shortcuts.removeAt(from)
+        shortcuts.add(to, item)
+        writeStringList(KEY_HOME_SHORTCUTS, shortcuts)
+    }
+
+    fun getHomeWidgetIds(): List<Int> = try {
+        val array = JSONArray(prefs.getString(KEY_HOME_WIDGETS, "[]") ?: "[]")
+        (0 until array.length()).mapNotNull { array.optInt(it, -1).takeIf { id -> id >= 0 } }
+    } catch (_: Exception) {
+        emptyList()
+    }
+
+    fun addHomeWidgetId(widgetId: Int) {
+        if (widgetId < 0) return
+        val ids = getHomeWidgetIds()
+        if (widgetId !in ids) prefs.edit().putString(KEY_HOME_WIDGETS, JSONArray(ids + widgetId).toString()).apply()
+    }
+
+    fun removeHomeWidgetId(widgetId: Int) {
+        prefs.edit().putString(KEY_HOME_WIDGETS, JSONArray(getHomeWidgetIds().filterNot { it == widgetId }).toString()).apply()
+    }
+
+    fun moveHomeWidget(widgetId: Int, offset: Int) {
+        val ids = getHomeWidgetIds().toMutableList()
+        val from = ids.indexOf(widgetId)
+        if (from < 0) return
+        val to = (from + offset).coerceIn(0, ids.lastIndex)
+        if (to == from) return
+        val item = ids.removeAt(from)
+        ids.add(to, item)
+        prefs.edit().putString(KEY_HOME_WIDGETS, JSONArray(ids).toString()).apply()
+    }
+
+    private fun readStringList(key: String): List<String> = try {
+        val array = JSONArray(prefs.getString(key, "[]") ?: "[]")
+        (0 until array.length()).mapNotNull { index ->
+            array.optString(index).trim().takeIf { it.isNotEmpty() }
+        }.distinct()
+    } catch (_: Exception) {
+        emptyList()
+    }
+
+    private fun writeStringList(key: String, values: List<String>) {
+        prefs.edit().putString(key, JSONArray(values.distinct()).toString()).apply()
+    }
+
     var lockscreenPin: String?
         get() = if (prefs.contains(KEY_LOCKSCREEN_PIN_HASH)) "configured" else null
         set(value) {
@@ -209,6 +298,11 @@ class LauncherFeatureStore(context: Context) {
         private const val KEY_ICON_SIZE = "feature_icon_size"
         private const val KEY_ICON_PACK = "feature_icon_pack"
         private const val KEY_LOCKSCREEN = "feature_lockscreen"
+        private const val KEY_DOUBLE_TAP_LOCK = "gesture_double_tap_lock"
+        private const val KEY_HOME_SWIPE_UP = "gesture_home_swipe_up"
+        private const val KEY_HOME_SWIPE_DOWN = "gesture_home_swipe_down"
+        private const val KEY_HOME_SHORTCUTS = "home_shortcut_packages"
+        private const val KEY_HOME_WIDGETS = "home_widget_ids"
         private const val KEY_LOCKSCREEN_PIN_HASH = "feature_lockscreen_pin_hash"
         private const val KEY_LOCKSCREEN_PIN_SALT = "feature_lockscreen_pin_salt"
         private const val KEY_CUSTOM_PALETTE = "feature_custom_palette"

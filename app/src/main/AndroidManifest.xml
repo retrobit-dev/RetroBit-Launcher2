@@ -55,6 +55,18 @@
             </intent-filter>
         </activity>
 
+        <receiver
+            android:name=".data.RetroBitDeviceAdminReceiver"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/retrobit_device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
         <!-- SERVICE PEMANTAU NOTIFIKASI (NIAGARA-STYLE NOTIFICATION PREVIEW) -->
         <service
             android:name=".data.NotificationMonitorService"

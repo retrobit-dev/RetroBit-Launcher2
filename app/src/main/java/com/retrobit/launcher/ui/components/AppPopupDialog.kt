@@ -20,6 +20,8 @@ fun AppPopupDialog(
     app: AppModel,
     onDismiss: () -> Unit,
     onLaunch: () -> Unit,
+    isPinnedToHome: Boolean,
+    onToggleHomeShortcut: () -> Unit,
     onRename: () -> Unit,
     onToggleFavorite: () -> Unit,
     onToggleHide: () -> Unit,
@@ -87,6 +89,11 @@ fun AppPopupDialog(
             Spacer(Modifier.height(4.dp))
 
             CyberActionButton(label = "▶ EXECUTE APPLICATION", onClick = onLaunch)
+            Spacer(Modifier.height(4.dp))
+            CyberActionButton(
+                label = if (isPinnedToHome) "▣ REMOVE FROM HOME SCREEN" else "▣ ADD TO HOME SCREEN",
+                onClick = onToggleHomeShortcut
+            )
             Spacer(Modifier.height(4.dp))
             CyberActionButton(label = "✎ RENAME / CUSTOM ALIAS", onClick = onRename)
             Spacer(Modifier.height(4.dp))

@@ -1,5 +1,12 @@
 package com.retrobit.launcher.ui
 
+import android.app.Activity
+import android.appwidget.AppWidgetHost
+import android.appwidget.AppWidgetManager
+import android.content.Intent
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,6 +31,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import com.retrobit.launcher.data.AppModel
 import com.retrobit.launcher.data.AppRepository
+import com.retrobit.launcher.data.DeviceLockController
 import com.retrobit.launcher.data.LauncherFeatureStore
 import com.retrobit.launcher.data.NotificationMonitorService
 import com.retrobit.launcher.data.UsageStatsRepository
@@ -47,7 +55,14 @@ fun MainLauncherScreen(
     val context = LocalContext.current
     val featureStore = remember(context) { LauncherFeatureStore(context) }
     val usageStatsRepository = remember(context) { UsageStatsRepository(context) }
+    val widgetHost = remember(context) { AppWidgetHost(context, 0x524254) }
+    val widgetManager = remember(context) { AppWidgetManager.getInstance(context) }
     val scope = rememberCoroutineScope()
+
+    DisposableEffect(widgetHost) {
+        runCatching { widgetHost.startListening() }
+        onDispose { runCatching { widgetHost.stopListening() } }
+    }
     val listState = rememberLazyListState()
 
     var allApps by remember { mutableStateOf<List<AppModel>>(emptyList()) }
@@ -58,6 +73,11 @@ fun MainLauncherScreen(
     var isMediaVisible by remember { mutableStateOf(true) }
     var isFocusModeEnabled by remember { mutableStateOf(featureStore.focusModeEnabled) }
     var iconSizeDp by remember { mutableFloatStateOf(featureStore.iconSizeDp) }
+    var isHomeDashboardOpen by remember { mutableStateOf(true) }
+    var isHomeEditing by remember { mutableStateOf(false) }
+    var isHomeShortcutPickerOpen by remember { mutableStateOf(false) }
+    var homeShortcutPackages by remember { mutableStateOf(featureStore.getHomeShortcutPackages()) }
+    var homeWidgetIds by remember { mutableStateOf(featureStore.getHomeWidgetIds()) }
 
     // ==========================================================================
     // STEALTH AUTO-HIDE ENGINE (Daftar aplikasi otomatis hilang & muncul saat disentuh)
@@ -92,7 +112,101 @@ fun MainLauncherScreen(
     var isLockScreenOpen by remember { mutableStateOf(featureStore.lockscreenEnabled && featureStore.lockscreenPin != null) }
     var isTodoOpen by remember { mutableStateOf(false) }
     var isCalendarOpen by remember { mutableStateOf(false) }
+    var isDeviceAdminPromptOpen by remember { mutableStateOf(false) }
+    var widgetPickerPendingId by remember { mutableIntStateOf(-1) }
+    var widgetToConfigureId by remember { mutableIntStateOf(-1) }
     var isEpaperRefreshing by remember { mutableStateOf(false) }
+
+    val widgetConfigurationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val widgetId = widgetToConfigureId
+        if (widgetId >= 0) {
+            if (result.resultCode == Activity.RESULT_OK) {
+                featureStore.addHomeWidgetId(widgetId)
+                homeWidgetIds = featureStore.getHomeWidgetIds()
+            } else {
+                widgetHost.deleteAppWidgetId(widgetId)
+            }
+            widgetToConfigureId = -1
+        }
+    }
+    val widgetPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val allocatedId = widgetPickerPendingId
+        val widgetId = result.data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, allocatedId) ?: allocatedId
+        if (result.resultCode == Activity.RESULT_OK && widgetId >= 0) {
+            val provider = widgetManager.getAppWidgetInfo(widgetId)
+            if (provider == null) {
+                widgetHost.deleteAppWidgetId(widgetId)
+                Toast.makeText(context, "Widget provider is unavailable.", Toast.LENGTH_SHORT).show()
+            } else if (provider.configure != null) {
+                widgetToConfigureId = widgetId
+            } else {
+                featureStore.addHomeWidgetId(widgetId)
+                homeWidgetIds = featureStore.getHomeWidgetIds()
+            }
+        } else if (allocatedId >= 0) {
+            widgetHost.deleteAppWidgetId(allocatedId)
+        }
+        widgetPickerPendingId = -1
+    }
+
+    LaunchedEffect(widgetToConfigureId) {
+        val widgetId = widgetToConfigureId
+        if (widgetId >= 0) {
+            val provider = widgetManager.getAppWidgetInfo(widgetId)
+            if (provider?.configure != null) {
+                val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE)
+                    .setComponent(provider.configure)
+                    .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                runCatching { widgetConfigurationLauncher.launch(intent) }
+                    .onFailure {
+                        widgetHost.deleteAppWidgetId(widgetId)
+                        widgetToConfigureId = -1
+                    }
+            } else {
+                featureStore.addHomeWidgetId(widgetId)
+                homeWidgetIds = featureStore.getHomeWidgetIds()
+                widgetToConfigureId = -1
+            }
+        }
+    }
+
+    fun launchWidgetPicker() {
+        val widgetId = widgetHost.allocateAppWidgetId()
+        widgetPickerPendingId = widgetId
+        val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK)
+            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+        runCatching { widgetPickerLauncher.launch(intent) }
+            .onFailure {
+                widgetHost.deleteAppWidgetId(widgetId)
+                widgetPickerPendingId = -1
+                Toast.makeText(context, "Could not open the Android widget picker.", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    fun removeHomeWidget(widgetId: Int) {
+        featureStore.removeHomeWidgetId(widgetId)
+        runCatching { widgetHost.deleteAppWidgetId(widgetId) }
+        homeWidgetIds = featureStore.getHomeWidgetIds()
+    }
+
+    fun toggleHomeShortcut(packageName: String) {
+        featureStore.toggleHomeShortcut(packageName)
+        homeShortcutPackages = featureStore.getHomeShortcutPackages()
+    }
+
+    fun moveHomeShortcut(packageName: String, offset: Int) {
+        featureStore.moveHomeShortcut(packageName, offset)
+        homeShortcutPackages = featureStore.getHomeShortcutPackages()
+    }
+
+    fun moveHomeWidget(widgetId: Int, offset: Int) {
+        featureStore.moveHomeWidget(widgetId, offset)
+        homeWidgetIds = featureStore.getHomeWidgetIds()
+    }
 
     val lifecycleOwner = context as? LifecycleOwner
     DisposableEffect(lifecycleOwner) {
@@ -121,7 +235,7 @@ fun MainLauncherScreen(
     }
 
     fun launchAppWithPolicies(app: AppModel, skipMindfulPause: Boolean = false) {
-        if (isFocusModeEnabled && !app.isFavorite) {
+        if (isFocusModeEnabled && !app.isFavorite && app.packageName !in homeShortcutPackages) {
             launchRestriction = "FOCUS MODE" to "Focus mode allows launching favorite apps only. Change favorites or disable Focus Mode in Settings."
             return
         }
@@ -147,6 +261,10 @@ fun MainLauncherScreen(
     fun handleVoiceCommand(spoken: String) {
         val command = spoken.trim().lowercase()
         when {
+            command == "home" || command == "beranda" -> {
+                isHomeDashboardOpen = true
+                searchQuery = ""
+            }
             command == "matrix" || command.contains("matrix rain") || command.contains("hujan matrix") -> {
                 isMatrixRainOpen = true
             }
@@ -162,10 +280,12 @@ fun MainLauncherScreen(
             }
             command in setOf("refresh", "segarkan", "refresh layar") -> isEpaperRefreshing = true
             command in setOf("show apps", "tampilkan aplikasi", "buka daftar aplikasi", "daftar aplikasi") -> {
+                isHomeDashboardOpen = false
                 searchQuery = ""
                 registerInteraction()
             }
             command.startsWith("cari ") || command.startsWith("search ") -> {
+                isHomeDashboardOpen = false
                 searchQuery = command.substringAfter(' ')
                 registerInteraction()
             }
@@ -182,12 +302,14 @@ fun MainLauncherScreen(
                     onThemeChange(next)
                     isEpaperRefreshing = true
                 } else {
+                    isHomeDashboardOpen = false
                     searchQuery = spoken
                 }
             }
             command.startsWith("buka ") || command.startsWith("open ") -> {
                 val appQuery = command.substringAfter(' ')
                 if (appQuery in setOf("daftar", "apps", "aplikasi")) {
+                    isHomeDashboardOpen = false
                     searchQuery = ""
                     registerInteraction()
                 } else {
@@ -203,6 +325,7 @@ fun MainLauncherScreen(
                 }
             }
             else -> {
+                isHomeDashboardOpen = false
                 searchQuery = spoken
                 registerInteraction()
             }
@@ -293,16 +416,19 @@ fun MainLauncherScreen(
                 )
             }
 
-            // 3. Category Filter Chips
-            CategoryChipsRow(
-                selectedCategory = selectedCategory,
-                hiddenCount = hiddenCount,
-                onSelectCategory = {
-                    selectedCategory = it
-                    registerInteraction()
-                },
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
-            )
+            // 3. Category filters appear in the app drawer; the Home dashboard stays uncluttered.
+            if (!isHomeDashboardOpen) {
+                CategoryChipsRow(
+                    selectedCategory = selectedCategory,
+                    hiddenCount = hiddenCount,
+                    onSelectCategory = {
+                        selectedCategory = it
+                        isHomeDashboardOpen = false
+                        registerInteraction()
+                    },
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+                )
+            }
 
             // 4. Command / Search Input Bar with Inline Calculator
             Row(
@@ -324,6 +450,7 @@ fun MainLauncherScreen(
                     value = searchQuery,
                     onValueChange = {
                         searchQuery = it
+                        if (it.isNotBlank()) isHomeDashboardOpen = false
                         registerInteraction()
                     },
                     textStyle = TextStyle(
@@ -375,12 +502,48 @@ fun MainLauncherScreen(
                 VoiceCommandButton(onRecognized = ::handleVoiceCommand)
             }
 
-            // 5. Main Body: Stealth Standby Mode vs Niagara Curved App List
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                HomeSurfaceButton("HOME", isHomeDashboardOpen, Modifier.weight(1f)) {
+                    isHomeDashboardOpen = true
+                    searchQuery = ""
+                    isAppListRevealed = false
+                }
+                HomeSurfaceButton("APPS", !isHomeDashboardOpen, Modifier.weight(1f)) {
+                    isHomeDashboardOpen = false
+                    registerInteraction()
+                }
+            }
+
+            // 5. Main Body: scrollable Home dashboard or Niagara-style app drawer
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
             ) {
+                if (isHomeDashboardOpen) {
+                    HomeDashboard(
+                        apps = allApps,
+                        homeShortcutPackages = homeShortcutPackages,
+                        widgetIds = homeWidgetIds,
+                        widgetHost = widgetHost,
+                        iconSizeDp = iconSizeDp,
+                        isEditing = isHomeEditing,
+                        onToggleEdit = { isHomeEditing = !isHomeEditing },
+                        onLaunchApp = { launchAppWithPolicies(it) },
+                        onAddApp = { isHomeShortcutPickerOpen = true },
+                        onAddWidget = { launchWidgetPicker() },
+                        onRemoveShortcut = { packageName ->
+                            featureStore.removeHomeShortcut(packageName)
+                            homeShortcutPackages = featureStore.getHomeShortcutPackages()
+                        },
+                        onMoveShortcut = ::moveHomeShortcut,
+                        onRemoveWidget = ::removeHomeWidget,
+                        onMoveWidget = ::moveHomeWidget
+                    )
+                } else {
                 // KONDISI 1: STANDBY STEALTH BANNER (Muncul saat daftar aplikasi otomatis tersembunyi)
                 androidx.compose.animation.AnimatedVisibility(
                     visible = !isAppListRevealed,
@@ -494,6 +657,31 @@ fun MainLauncherScreen(
                     },
                     modifier = Modifier.align(Alignment.CenterEnd)
                 )
+                }
+            }
+
+            if (isHomeDashboardOpen) {
+                HomeGesturePad(
+                    onDoubleTap = {
+                        if (featureStore.doubleTapToLockEnabled) {
+                            if (!DeviceLockController.isAdminActive(context)) {
+                                isDeviceAdminPromptOpen = true
+                            } else if (!DeviceLockController.lockNow(context)) {
+                                Toast.makeText(context, "Android could not lock the device.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    onLongPress = { isHomeEditing = !isHomeEditing },
+                    onSwipeUp = {
+                        if (featureStore.homeSwipeUpEnabled) {
+                            isHomeDashboardOpen = false
+                            registerInteraction()
+                        }
+                    },
+                    onSwipeDown = {
+                        if (featureStore.homeSwipeDownEnabled) isQuickControlsOpen = true
+                    }
+                )
             }
 
             // 6. Bottom Chassis Deck Toolbar
@@ -545,6 +733,11 @@ fun MainLauncherScreen(
                     selectedAppForModal = null
                     launchAppWithPolicies(app)
                 },
+                isPinnedToHome = app.packageName in homeShortcutPackages,
+                onToggleHomeShortcut = {
+                    toggleHomeShortcut(app.packageName)
+                    selectedAppForModal = null
+                },
                 onRename = {
                     appToRename = app
                     selectedAppForModal = null
@@ -571,6 +764,30 @@ fun MainLauncherScreen(
                 onUninstall = {
                     selectedAppForModal = null
                     repository.uninstallApp(app.packageName)
+                }
+            )
+        }
+
+        if (isHomeShortcutPickerOpen) {
+            HomeShortcutPickerDialog(
+                apps = allApps,
+                pinnedPackages = homeShortcutPackages.toSet(),
+                onSelect = { app ->
+                    featureStore.addHomeShortcut(app.packageName)
+                    homeShortcutPackages = featureStore.getHomeShortcutPackages()
+                    isHomeShortcutPickerOpen = false
+                },
+                onDismiss = { isHomeShortcutPickerOpen = false }
+            )
+        }
+
+        if (isDeviceAdminPromptOpen) {
+            DeviceAdminPromptDialog(
+                onDismiss = { isDeviceAdminPromptOpen = false },
+                onActivate = {
+                    isDeviceAdminPromptOpen = false
+                    runCatching { context.startActivity(DeviceLockController.activationIntent(context)) }
+                        .onFailure { Toast.makeText(context, "Could not open Android Device Admin settings.", Toast.LENGTH_SHORT).show() }
                 }
             )
         }
@@ -659,6 +876,14 @@ fun MainLauncherScreen(
                 onShowMatrix = { isSettingsOpen = false; isMatrixRainOpen = true },
                 onConfigureWeather = { isSettingsOpen = false; isWeatherConfigOpen = true },
                 onPreviewLockscreen = { isSettingsOpen = false; isLockScreenOpen = true },
+                onActivateDeviceAdmin = {
+                    runCatching { context.startActivity(DeviceLockController.activationIntent(context)) }
+                        .onFailure { Toast.makeText(context, "Could not open Android Device Admin settings.", Toast.LENGTH_SHORT).show() }
+                },
+                onRemoveDeviceAdmin = {
+                    runCatching { context.startActivity(DeviceLockController.removalIntent(context)) }
+                        .onFailure { Toast.makeText(context, "Could not open Android Device Admin settings.", Toast.LENGTH_SHORT).show() }
+                },
                 onDismiss = { isSettingsOpen = false }
             )
         }
@@ -698,6 +923,26 @@ fun DeckButton(
             fontFamily = FontFamily.Monospace,
             color = colors.inkPrimary,
             letterSpacing = 0.5.sp
+        )
+    }
+}
+
+@Composable
+private fun HomeSurfaceButton(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val colors = LocalRetroBitColors.current
+    Box(
+        modifier = modifier
+            .background(if (selected) colors.inkPrimary else colors.surface)
+            .border(1.dp, colors.border)
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            color = if (selected) colors.background else colors.inkPrimary,
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold
         )
     }
 }

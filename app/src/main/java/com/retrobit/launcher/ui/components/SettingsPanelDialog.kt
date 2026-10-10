@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.retrobit.launcher.data.AppModel
 import com.retrobit.launcher.data.AppRepository
+import com.retrobit.launcher.data.DeviceLockController
 import com.retrobit.launcher.data.IconPackManager
 import com.retrobit.launcher.data.LauncherFeatureStore
 import com.retrobit.launcher.data.NotificationMonitorService
@@ -55,6 +56,8 @@ fun SettingsPanelDialog(
     onShowMatrix: () -> Unit,
     onConfigureWeather: () -> Unit,
     onPreviewLockscreen: () -> Unit,
+    onActivateDeviceAdmin: () -> Unit,
+    onRemoveDeviceAdmin: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -71,6 +74,10 @@ fun SettingsPanelDialog(
     var usageSummary by remember { mutableStateOf("—") }
     var lockscreenEnabled by remember { mutableStateOf(store.lockscreenEnabled) }
     var pinDraft by remember { mutableStateOf("") }
+    var doubleTapLockEnabled by remember { mutableStateOf(store.doubleTapToLockEnabled) }
+    var swipeUpAppsEnabled by remember { mutableStateOf(store.homeSwipeUpEnabled) }
+    var swipeDownControlsEnabled by remember { mutableStateOf(store.homeSwipeDownEnabled) }
+    var deviceAdminActive by remember(context) { mutableStateOf(DeviceLockController.isAdminActive(context)) }
     val iconPacks = remember(context) { IconPackManager(context).installedPacks() }
 
     LaunchedEffect(Unit) {
@@ -84,6 +91,7 @@ fun SettingsPanelDialog(
             }
             hasUsageAccess = usage.first
             usageSummary = usage.second
+            deviceAdminActive = DeviceLockController.isAdminActive(context)
             kotlinx.coroutines.delay(5_000)
         }
     }
@@ -304,6 +312,32 @@ fun SettingsPanelDialog(
                         SettingAction("QUICK CONTROLS", "Volume, brightness, flashlight, and system connectivity settings.", onOpenQuickControls)
                     }
                     else -> {
+                        SectionLabel("HOME GESTURES")
+                        ToggleSetting(
+                            "DOUBLE TAP TO LOCK PHONE",
+                            "Requires explicit Android Device Admin activation; RetroBit requests only FORCE LOCK.",
+                            doubleTapLockEnabled
+                        ) {
+                            doubleTapLockEnabled = it
+                            store.doubleTapToLockEnabled = it
+                        }
+                        ToggleSetting("SWIPE UP // APP DRAWER", "Swipe upward on the gesture pad to reveal all apps.", swipeUpAppsEnabled) {
+                            swipeUpAppsEnabled = it
+                            store.homeSwipeUpEnabled = it
+                        }
+                        ToggleSetting("SWIPE DOWN // QUICK CONTROLS", "Swipe downward on the gesture pad to open device controls.", swipeDownControlsEnabled) {
+                            swipeDownControlsEnabled = it
+                            store.homeSwipeDownEnabled = it
+                        }
+                        SettingAction(
+                            title = if (deviceAdminActive) "DEVICE ADMIN: ACTIVE" else "ACTIVATE DEVICE ADMIN",
+                            detail = if (deviceAdminActive) "Double-tap the gesture pad to lock the phone. You can remove approval in Android settings." else "Android will ask for approval before double-tap can lock the phone.",
+                            onClick = onActivateDeviceAdmin
+                        )
+                        if (deviceAdminActive) {
+                            SettingAction("REMOVE DEVICE ADMIN APPROVAL", "Opens Android's confirmation screen.", onRemoveDeviceAdmin)
+                        }
+                        Text("Gesture pad: double tap = lock · swipe up = app drawer · swipe down = quick controls · long press = edit home.", color = colors.inkMuted, fontSize = 8.sp)
                         SectionLabel("PRODUCTIVITY")
                         SettingAction("OPEN TODO WIDGET", "Add, check off, and remove locally stored tasks.", onOpenTodo)
                         SettingAction("OPEN CALENDAR", "Month/day view; optionally reads device calendar events.", onOpenCalendar)
