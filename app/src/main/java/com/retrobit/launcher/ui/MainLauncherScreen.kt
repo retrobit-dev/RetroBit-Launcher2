@@ -34,6 +34,7 @@ import com.retrobit.launcher.data.AppModel
 import com.retrobit.launcher.data.AppRepository
 import com.retrobit.launcher.data.DeviceLockController
 import com.retrobit.launcher.data.LauncherFeatureStore
+import com.retrobit.launcher.data.LauncherFeatureStore.HomeContentLayout
 import com.retrobit.launcher.data.LauncherFeatureStore.HomeGestureAction
 import com.retrobit.launcher.data.NotificationMonitorService
 import com.retrobit.launcher.data.UsageStatsRepository
@@ -81,6 +82,8 @@ fun MainLauncherScreen(
     var isHomeShortcutPickerOpen by remember { mutableStateOf(false) }
     var homeShortcutPackages by remember { mutableStateOf(featureStore.getHomeShortcutPackages()) }
     var homeWidgetIds by remember { mutableStateOf(featureStore.getHomeWidgetIds()) }
+    var homeShortcutLayout by remember { mutableStateOf(featureStore.homeShortcutLayout) }
+    var homeWidgetLayout by remember { mutableStateOf(featureStore.homeWidgetLayout) }
 
     // ==========================================================================
     // STEALTH AUTO-HIDE ENGINE (Daftar aplikasi otomatis hilang & muncul saat disentuh)
@@ -209,6 +212,16 @@ fun MainLauncherScreen(
     fun moveHomeWidget(widgetId: Int, offset: Int) {
         featureStore.moveHomeWidget(widgetId, offset)
         homeWidgetIds = featureStore.getHomeWidgetIds()
+    }
+
+    fun setHomeShortcutLayout(layout: HomeContentLayout) {
+        homeShortcutLayout = layout
+        featureStore.homeShortcutLayout = layout
+    }
+
+    fun setHomeWidgetLayout(layout: HomeContentLayout) {
+        homeWidgetLayout = layout
+        featureStore.homeWidgetLayout = layout
     }
 
     fun openAppDrawer() {
@@ -427,6 +440,16 @@ fun MainLauncherScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .homeScreenGestureDetector(
+                enabled = isHomeDashboardOpen,
+                doubleTapEnabled = true,
+                onDoubleTap = {
+                    if (featureStore.doubleTapToLockEnabled) requestDeviceLock()
+                },
+                onLongPress = { isHomeEditing = !isHomeEditing },
+                onSwipeUp = { performHomeGesture(featureStore.homeSwipeUpAction) },
+                onSwipeDown = { performHomeGesture(featureStore.homeSwipeDownAction) }
+            )
             .background(colors.background)
             .statusBarsPadding()
             .navigationBarsPadding()
@@ -553,6 +576,8 @@ fun MainLauncherScreen(
                         widgetIds = homeWidgetIds,
                         widgetHost = widgetHost,
                         iconSizeDp = iconSizeDp,
+                        shortcutLayout = homeShortcutLayout,
+                        widgetLayout = homeWidgetLayout,
                         isEditing = isHomeEditing,
                         onToggleEdit = { isHomeEditing = !isHomeEditing },
                         onLaunchApp = { launchAppWithPolicies(it) },
@@ -565,11 +590,13 @@ fun MainLauncherScreen(
                         onMoveShortcut = ::moveHomeShortcut,
                         onRemoveWidget = ::removeHomeWidget,
                         onMoveWidget = ::moveHomeWidget,
-                        modifier = Modifier.padding(end = 30.dp)
+                        onShortcutLayoutChange = ::setHomeShortcutLayout,
+                        onWidgetLayoutChange = ::setHomeWidgetLayout,
+                        modifier = Modifier
                     )
                     RightEdgeAppDrawerHandle(
                         onOpen = { openAppDrawer() },
-                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 4.dp)
+                        modifier = Modifier.align(Alignment.CenterEnd)
                     )
                 } else {
                 // KONDISI 1: STANDBY STEALTH BANNER (Muncul saat daftar aplikasi otomatis tersembunyi)
@@ -686,20 +713,6 @@ fun MainLauncherScreen(
                     modifier = Modifier.align(Alignment.CenterEnd)
                 )
                 }
-            }
-
-            if (isHomeDashboardOpen) {
-                HomeGesturePad(
-                    doubleTapEnabled = featureStore.doubleTapToLockEnabled,
-                    swipeUpLabel = featureStore.homeSwipeUpAction.label,
-                    swipeDownLabel = featureStore.homeSwipeDownAction.label,
-                    onDoubleTap = {
-                        if (featureStore.doubleTapToLockEnabled) requestDeviceLock()
-                    },
-                    onLongPress = { isHomeEditing = !isHomeEditing },
-                    onSwipeUp = { performHomeGesture(featureStore.homeSwipeUpAction) },
-                    onSwipeDown = { performHomeGesture(featureStore.homeSwipeDownAction) }
-                )
             }
 
             // 6. Bottom Chassis Deck Toolbar

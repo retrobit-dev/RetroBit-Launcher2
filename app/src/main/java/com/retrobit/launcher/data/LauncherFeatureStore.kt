@@ -26,6 +26,14 @@ class LauncherFeatureStore(context: Context) {
         fun next(): HomeGestureAction = entries[(ordinal + 1) % entries.size]
     }
 
+    enum class HomeContentLayout(val label: String) {
+        HORIZONTAL("HORIZONTAL"),
+        VERTICAL("VERTICAL"),
+        MANUAL("MANUAL");
+
+        fun next(): HomeContentLayout = entries[(ordinal + 1) % entries.size]
+    }
+
     var weatherCity: String
         get() = prefs.getString(KEY_WEATHER_CITY, "Semarang") ?: "Semarang"
         set(value) { prefs.edit().putString(KEY_WEATHER_CITY, value.trim()).apply() }
@@ -66,9 +74,22 @@ class LauncherFeatureStore(context: Context) {
         get() = gestureAction(KEY_HOME_SWIPE_DOWN, HomeGestureAction.QUICK_CONTROLS)
         set(value) { prefs.edit().putString(KEY_HOME_SWIPE_DOWN, value.name).apply() }
 
+    var homeShortcutLayout: HomeContentLayout
+        get() = contentLayout(KEY_HOME_SHORTCUT_LAYOUT, HomeContentLayout.MANUAL)
+        set(value) { prefs.edit().putString(KEY_HOME_SHORTCUT_LAYOUT, value.name).apply() }
+
+    var homeWidgetLayout: HomeContentLayout
+        get() = contentLayout(KEY_HOME_WIDGET_LAYOUT, HomeContentLayout.VERTICAL)
+        set(value) { prefs.edit().putString(KEY_HOME_WIDGET_LAYOUT, value.name).apply() }
+
     private fun gestureAction(key: String, default: HomeGestureAction): HomeGestureAction =
         prefs.getString(key, null)?.let { value ->
             runCatching { HomeGestureAction.valueOf(value) }.getOrNull()
+        } ?: default
+
+    private fun contentLayout(key: String, default: HomeContentLayout): HomeContentLayout =
+        prefs.getString(key, null)?.let { value ->
+            runCatching { HomeContentLayout.valueOf(value) }.getOrNull()
         } ?: default
 
     fun getHomeShortcutPackages(): List<String> = readStringList(KEY_HOME_SHORTCUTS)
@@ -319,6 +340,8 @@ class LauncherFeatureStore(context: Context) {
         private const val KEY_HOME_SWIPE_DOWN = "gesture_home_swipe_down_action"
         private const val KEY_HOME_SHORTCUTS = "home_shortcut_packages"
         private const val KEY_HOME_WIDGETS = "home_widget_ids"
+        private const val KEY_HOME_SHORTCUT_LAYOUT = "home_shortcut_layout"
+        private const val KEY_HOME_WIDGET_LAYOUT = "home_widget_layout"
         private const val KEY_LOCKSCREEN_PIN_HASH = "feature_lockscreen_pin_hash"
         private const val KEY_LOCKSCREEN_PIN_SALT = "feature_lockscreen_pin_salt"
         private const val KEY_CUSTOM_PALETTE = "feature_custom_palette"

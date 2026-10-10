@@ -356,7 +356,7 @@ fun SettingsPanelDialog(
                         if (deviceAdminActive) {
                             SettingAction("REVOKE DEVICE ADMIN APPROVAL", "Opens Android Security settings so you can deactivate RetroBit.", onRemoveDeviceAdmin)
                         }
-                        Text("Gesture pad: double tap can lock the phone; swipe actions are selected above; long press edits the home screen.", color = colors.inkMuted, fontSize = 8.sp)
+                        Text("Home gestures work across the homescreen: double-tap to lock, fast swipes run the selected actions, and holding anywhere toggles edit mode.", color = colors.inkMuted, fontSize = 8.sp)
                         SectionLabel("PRODUCTIVITY")
                         SettingAction("OPEN TODO WIDGET", "Add, check off, and remove locally stored tasks.", onOpenTodo)
                         SettingAction("OPEN CALENDAR", "Month/day view; optionally reads device calendar events.", onOpenCalendar)

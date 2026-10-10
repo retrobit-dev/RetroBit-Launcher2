@@ -7,15 +7,14 @@
 
 ## 🌟 Fitur Unggulan (Top Launchers Features)
 
-1. **Stealth Auto-Hide Directory (Daftar Aplikasi Otomatis Hilang & Muncul Saat Disentuh):**
-   - Layar default berada dalam mode **Cold Standby** murni (hanya menampilkan jam monospaced, baterai ASCII, kontrol musik, dan status telemetry).
-   - Sentuh area tengah layar atau geser slider alfabet A–Z di kanan: daftar aplikasi Niagara langsung muncul seketika secara halus (*animated fade & expand*).
-   - Setelah 4.5 detik tanpa interaksi, daftar aplikasi akan otomatis kembali tersembunyi untuk menjaga fokus pikiran dari distraksi (*pure digital zen*).
-   - Dapat diatur ke mode `STEALTH: ON` atau `STEALTH: OFF` melalui tombol toolbar bawah.
+1. **Personal Deck + Stealth App Drawer:**
+   - Launcher membuka homescreen Personal Deck berisi shortcut aplikasi dan widget Android yang dapat discroll.
+   - Handle `A–Z` di tepi kanan membuka app drawer; handle menyusut otomatis setelah 2.5 detik dan tetap bisa diketuk atau digeser dari tepi.
+   - App drawer otomatis kembali tersembunyi setelah 4.5 detik tanpa interaksi. Atur `STEALTH: ON` atau `STEALTH: OFF` melalui toolbar bawah.
 2. **Ergonomic Niagara Curved Thumb Arc:**
    - Susunan aplikasi melengkung vertikal yang mengikuti jangkauan jempol secara natural berbasis fungsi sinus matematis.
-2. **Fluid Alphabet Scrubber (A–Z Slider):**
-   - Slider huruf di sisi kanan layar dengan respon getaran haptik mekanik native (`HapticFeedbackConstants.CLOCK_TICK`) dan balon indikator HUD mengambang.
+3. **Fluid Alphabet Scrubber (A–Z Slider):**
+   - Scrubber huruf di dalam app drawer dengan respon getaran haptik native (`HapticFeedbackConstants.CLOCK_TICK`) dan balon indikator HUD mengambang.
 3. **App Hiding & Detox Vault (Sembunyikan Aplikasi Distraksi):**
    - Sembunyikan aplikasi media sosial atau game yang memicu distraksi (*digital declutter*).
    - Akses kembali kapan saja melalui tab `#HIDDEN` atau tombol Vault di toolbar.
@@ -31,7 +30,7 @@
    - Ketik perhitungan langsung di search bar (misal: `> 45 * 12 + 8`) dan hasilnya langsung muncul seketika (`= 548`).
 9. **Hardware E-Paper Refresh Cycle (Inversion Flash):**
    - Mensimulasikan kedipan inversi hitam-putih khas layar E-Ink Carta 1200 untuk membersihkan ghosting visual.
-   - Dapat dipicu via tombol toolbar, tombol samping chassis, atau gestur **double-tap** pada layar!
+   - Dapat dipicu melalui tombol refresh di toolbar. Double-tap layar homescreen disediakan untuk fitur kunci ponsel jika diaktifkan.
 10. **4 Skema Warna E-Paper Monokrom Grayscale:**
     - **Paper White (Kindle Standard):** Latar gading hangat + tinta karbon hitam pekat.
     - **Slate Onyx (Dark E-Ink):** Latar arang gelap hemat baterai untuk layar OLED/AMOLED.
@@ -54,8 +53,8 @@
 
 Buka **SETTINGS** di toolbar bawah untuk panel lima tab: `PROFILE`, `WELLBEING`, `APPEARANCE`, `SERVICES`, dan `TOOLS`.
 
-- **Home Workspace:** homescreen menyediakan shortcut aplikasi dan stack widget Android yang tersusun vertikal serta dapat discroll. `+ APP` membuka pemilih aplikasi; `+ WIDGET` membuka pemilih widget sistem. Tekan `EDIT` atau tahan gesture pad untuk mengurutkan/menghapus item. Tahan aplikasi di drawer, lalu pilih `ADD TO HOME SCREEN` untuk menyematkannya.
-- **Gestures:** ketuk atau geser ke kiri pada handle sisi kanan homescreen untuk membuka app drawer; tombol Back kembali ke homescreen. Gesture pad menyediakan double-tap untuk mengunci ponsel, swipe-up untuk membuka drawer, swipe-down untuk Quick Controls, dan long-press untuk mode edit. Aksi swipe dapat dipilih di tab `TOOLS`. Double-tap lock memerlukan aktivasi Device Admin secara eksplisit di Android; aplikasi hanya meminta kebijakan `FORCE LOCK`, tidak meminta hak wipe/manage perangkat.
+- **Home Workspace:** homescreen menyediakan shortcut aplikasi dan widget Android. Tekan `EDIT` atau tahan layar untuk mengatur item; saat Edit aktif, pilih susunan `HORIZONTAL`, `VERTICAL`, atau `MANUAL` secara terpisah untuk ikon aplikasi dan widget. Mode Manual menyediakan kontrol `↑ ↓` untuk mengurutkan dan `×` untuk menghapus. `+ APP` membuka pemilih aplikasi; `+ WIDGET` membuka pemilih widget sistem. Tahan aplikasi di drawer, lalu pilih `ADD TO HOME SCREEN` untuk menyematkannya.
+- **Gestures:** handle `A–Z` di sisi kanan membuka app drawer dengan ketukan atau geser kiri dan otomatis menyusut menjadi garis tipis. Tombol Back kembali ke homescreen. Gesture bekerja di seluruh halaman Home—double-tap untuk mengunci, swipe cepat menjalankan aksi atas/bawah, dan tahan untuk masuk/keluar mode edit. Aksi swipe dapat dipilih di tab `TOOLS`. Double-tap lock memerlukan aktivasi Device Admin secara eksplisit di Android; aplikasi hanya meminta kebijakan `FORCE LOCK`, tidak meminta hak wipe/manage perangkat.
 
 - **Voice Command (Indonesia / English):** tombol `MIC` di samping pencarian. Perintah meliputi `cari/search`, `buka/open [nama aplikasi]`, `tema/theme [light|dark|pocket|stark]`, `tampilkan aplikasi`, `refresh`, `matrix`, `tiles`, `todo`, `calendar`, dan `help`. Pilih bahasa `ID` atau `EN` di samping tombol mic.
 - **Digital Wellbeing:** total waktu layar dan waktu per aplikasi dibaca dari Android Usage Stats. Aktifkan *Usage Access* di tab `WELLBEING`; di sana juga tersedia Focus Mode (hanya favorit) dan batas harian aplikasi 15/30/60 menit.

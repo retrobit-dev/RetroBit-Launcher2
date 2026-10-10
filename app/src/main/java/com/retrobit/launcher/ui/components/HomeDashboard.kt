@@ -4,13 +4,14 @@ package com.retrobit.launcher.ui.components
 
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
-import android.appwidget.AppWidgetProviderInfo
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,11 +33,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.retrobit.launcher.data.AppModel
+import com.retrobit.launcher.data.LauncherFeatureStore.HomeContentLayout
 import com.retrobit.launcher.ui.theme.LocalRetroBitColors
 
 @Composable
@@ -45,6 +49,8 @@ fun HomeDashboard(
     widgetIds: List<Int>,
     widgetHost: AppWidgetHost,
     iconSizeDp: Float,
+    shortcutLayout: HomeContentLayout,
+    widgetLayout: HomeContentLayout,
     isEditing: Boolean,
     onToggleEdit: () -> Unit,
     onLaunchApp: (AppModel) -> Unit,
@@ -54,6 +60,8 @@ fun HomeDashboard(
     onMoveShortcut: (String, Int) -> Unit,
     onRemoveWidget: (Int) -> Unit,
     onMoveWidget: (Int, Int) -> Unit,
+    onShortcutLayoutChange: (HomeContentLayout) -> Unit,
+    onWidgetLayoutChange: (HomeContentLayout) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalRetroBitColors.current
@@ -63,12 +71,13 @@ fun HomeDashboard(
     val shortcuts = remember(apps, homeShortcutPackages) {
         homeShortcutPackages.mapNotNull { appByPackage[it] }
     }
-    val shortcutRows = remember(shortcuts) { shortcuts.chunked(4) }
+    val manualShortcutRows = remember(shortcuts) { shortcuts.chunked(4) }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(7.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+        // Match the 14dp horizontal chassis inset used by the telemetry and weather cards.
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 8.dp)
     ) {
         item(key = "home-title") {
             Column(Modifier.fillMaxWidth().background(colors.surface).border(1.dp, colors.border).padding(10.dp)) {
@@ -91,56 +100,120 @@ fun HomeDashboard(
                     HomeAction("+ WIDGET", Modifier.weight(1f), onAddWidget)
                 }
                 if (isEditing) {
-                    Text("EDIT MODE // use ↑ ↓ to reorder; × removes a shortcut or widget.", color = colors.inkMuted, fontSize = 7.sp, modifier = Modifier.padding(top = 5.dp))
+                    Spacer(Modifier.height(6.dp))
+                    Text("LAYOUT // choose each section's direction", color = colors.inkMuted, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                    HomeLayoutSelector("APP ICONS", shortcutLayout, onShortcutLayoutChange)
+                    HomeLayoutSelector("WIDGETS", widgetLayout, onWidgetLayoutChange)
+                    Text("MANUAL mode: use ↑ ↓ to arrange; × removes an item.", color = colors.inkMuted, fontSize = 7.sp)
                 }
             }
         }
 
         item(key = "home-shortcuts-title") {
-            HomeSectionLabel("PINNED APPS // HOME SHORTCUTS")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                HomeSectionLabel("PINNED APPS // ${shortcutLayout.label}")
+                if (shortcuts.isNotEmpty()) Text("${shortcuts.size} APPS", color = colors.inkMuted, fontSize = 7.sp)
+            }
         }
 
-        if (shortcutRows.isEmpty()) {
+        if (shortcuts.isEmpty()) {
             item(key = "home-shortcuts-empty") {
-                Text("No home shortcuts yet. Tap + APP or pin an app from its app-drawer menu.", color = colors.inkMuted, fontSize = 9.sp)
+                HomeEmptyState("No home shortcuts yet. Tap + APP or pin an app from its app-drawer menu.")
             }
-        } else {
-            itemsIndexed(shortcutRows, key = { _, row -> "shortcut-row-${row.first().packageName}" }) { _, row ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    row.forEachIndexed { index, app ->
-                        HomeShortcutTile(
-                            app = app,
-                            iconSizeDp = iconSizeDp,
-                            isEditing = isEditing,
-                            modifier = Modifier.weight(1f),
-                            onLaunch = { onLaunchApp(app) },
-                            onRemove = { onRemoveShortcut(app.packageName) },
-                            onMove = { offset -> onMoveShortcut(app.packageName, offset) }
-                        )
+        } else when (shortcutLayout) {
+            HomeContentLayout.HORIZONTAL -> {
+                item(key = "home-shortcuts-horizontal") {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        itemsIndexed(shortcuts, key = { _, app -> "shortcut-${app.packageName}" }) { _, app ->
+                            HomeShortcutTile(
+                                app = app,
+                                iconSizeDp = iconSizeDp,
+                                layout = HomeContentLayout.HORIZONTAL,
+                                isEditing = isEditing,
+                                modifier = Modifier.width(76.dp),
+                                onLaunch = { onLaunchApp(app) },
+                                onRemove = { onRemoveShortcut(app.packageName) },
+                                onMove = { offset -> onMoveShortcut(app.packageName, offset) }
+                            )
+                        }
                     }
-                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            HomeContentLayout.VERTICAL -> {
+                itemsIndexed(shortcuts, key = { _, app -> "shortcut-${app.packageName}" }) { _, app ->
+                    HomeShortcutTile(
+                        app = app,
+                        iconSizeDp = iconSizeDp,
+                        layout = HomeContentLayout.VERTICAL,
+                        isEditing = isEditing,
+                        modifier = Modifier.fillMaxWidth(),
+                        onLaunch = { onLaunchApp(app) },
+                        onRemove = { onRemoveShortcut(app.packageName) },
+                        onMove = { offset -> onMoveShortcut(app.packageName, offset) }
+                    )
+                }
+            }
+            HomeContentLayout.MANUAL -> {
+                itemsIndexed(manualShortcutRows, key = { _, row -> "shortcut-row-${row.first().packageName}" }) { _, row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        row.forEach { app ->
+                            HomeShortcutTile(
+                                app = app,
+                                iconSizeDp = iconSizeDp,
+                                layout = HomeContentLayout.MANUAL,
+                                isEditing = isEditing,
+                                modifier = Modifier.weight(1f),
+                                onLaunch = { onLaunchApp(app) },
+                                onRemove = { onRemoveShortcut(app.packageName) },
+                                onMove = { offset -> onMoveShortcut(app.packageName, offset) }
+                            )
+                        }
+                        repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
                 }
             }
         }
 
         item(key = "home-widgets-title") {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                HomeSectionLabel("WIDGET STACK // SCROLLABLE")
+                HomeSectionLabel("WIDGET STACK // ${widgetLayout.label}")
                 if (widgetIds.isNotEmpty()) Text("${widgetIds.size} ITEMS", color = colors.inkMuted, fontSize = 7.sp)
             }
         }
 
         if (widgetIds.isEmpty()) {
             item(key = "home-widgets-empty") {
-                Text("No widgets added. Use + WIDGET to choose Android widgets; they will stack here and scroll with the home page.", color = colors.inkMuted, fontSize = 9.sp)
+                HomeEmptyState("No widgets added. Use + WIDGET to choose Android widgets.")
+            }
+        } else if (widgetLayout == HomeContentLayout.HORIZONTAL) {
+            item(key = "home-widgets-horizontal") {
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val cardWidth = (maxWidth * 0.88f).coerceAtMost(360.dp)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        itemsIndexed(widgetIds, key = { _, id -> "widget-$id" }) { _, widgetId ->
+                            HomeWidgetCard(
+                                widgetId = widgetId,
+                                widgetHost = widgetHost,
+                                manager = manager,
+                                isEditing = isEditing,
+                                showMoveControls = false,
+                                modifier = Modifier.width(cardWidth),
+                                onRemove = { onRemoveWidget(widgetId) },
+                                onMove = { offset -> onMoveWidget(widgetId, offset) }
+                            )
+                        }
+                    }
+                }
             }
         } else {
-            itemsIndexed(widgetIds, key = { _, id -> "widget-$id" }) { index, widgetId ->
+            itemsIndexed(widgetIds, key = { _, id -> "widget-$id" }) { _, widgetId ->
                 HomeWidgetCard(
                     widgetId = widgetId,
                     widgetHost = widgetHost,
                     manager = manager,
                     isEditing = isEditing,
+                    showMoveControls = widgetLayout == HomeContentLayout.MANUAL,
+                    modifier = Modifier.fillMaxWidth(),
                     onRemove = { onRemoveWidget(widgetId) },
                     onMove = { offset -> onMoveWidget(widgetId, offset) }
                 )
@@ -149,7 +222,7 @@ fun HomeDashboard(
 
         item(key = "home-scroll-hint") {
             Text(
-                "SCROLL THE DECK ↑↓ // long-press the gesture pad below to edit",
+                "SCROLL THE DECK ↑↓ // long press anywhere for edit; fast swipes run your gesture actions",
                 color = colors.inkMuted,
                 fontSize = 7.sp,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
@@ -159,9 +232,47 @@ fun HomeDashboard(
 }
 
 @Composable
+private fun HomeLayoutSelector(
+    title: String,
+    selected: HomeContentLayout,
+    onSelect: (HomeContentLayout) -> Unit
+) {
+    val colors = LocalRetroBitColors.current
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(title, color = colors.inkSecondary, fontSize = 6.5.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(62.dp))
+        HomeContentLayout.entries.forEach { layout ->
+            val isSelected = selected == layout
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(if (isSelected) colors.inkPrimary else colors.background)
+                    .border(1.dp, colors.border)
+                    .clickable { onSelect(layout) }
+                    .padding(horizontal = 2.dp, vertical = 5.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    layout.label,
+                    color = if (isSelected) colors.background else colors.inkSecondary,
+                    fontSize = 6.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun HomeShortcutTile(
     app: AppModel,
     iconSizeDp: Float,
+    layout: HomeContentLayout,
     isEditing: Boolean,
     modifier: Modifier,
     onLaunch: () -> Unit,
@@ -170,33 +281,58 @@ private fun HomeShortcutTile(
 ) {
     val colors = LocalRetroBitColors.current
     val bitmap = remember(app.icon) { app.icon?.let { drawableToGrayscaleBitmap(it, 72, 72) } }
-    Column(modifier = modifier.padding(vertical = 3.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    val iconSize = iconSizeDp.coerceIn(28f, 52f).dp
+    val icon = @Composable {
         Box(
-            Modifier.size(iconSizeDp.coerceIn(28f, 52f).dp)
-                .background(colors.surface).border(1.dp, colors.border)
-                .combinedClickable(onClick = onLaunch, onLongClick = onRemove),
+            Modifier.size(iconSize)
+                .background(colors.surface)
+                .border(1.dp, colors.border)
+                .clickable(onClick = onLaunch),
             contentAlignment = Alignment.Center
         ) {
             if (bitmap != null) {
-                Image(bitmap.asImageBitmap(), contentDescription = app.displayLabel, modifier = Modifier.size((iconSizeDp.coerceIn(28f, 52f) * 0.72f).dp))
+                Image(bitmap.asImageBitmap(), contentDescription = app.displayLabel, modifier = Modifier.size(iconSizeDp.coerceIn(28f, 52f).times(0.72f).dp))
             } else {
                 Text(app.displayLabel.take(2).uppercase(), color = colors.inkPrimary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             }
         }
-        Text(
-            app.displayLabel,
-            color = colors.inkPrimary,
-            fontSize = 8.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
-        )
-        if (isEditing) {
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+    }
+    val controls = @Composable {
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (isEditing && layout == HomeContentLayout.MANUAL) {
                 MiniHomeControl("↑") { onMove(-1) }
                 MiniHomeControl("↓") { onMove(1) }
-                MiniHomeControl("×") { onRemove() }
             }
+            if (isEditing) MiniHomeControl("×") { onRemove() }
+        }
+    }
+
+    if (layout == HomeContentLayout.VERTICAL) {
+        Row(modifier = modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            icon()
+            Text(
+                app.displayLabel,
+                color = colors.inkPrimary,
+                fontSize = 8.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+            )
+            controls()
+        }
+    } else {
+        Column(modifier = modifier.padding(vertical = 3.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            icon()
+            Text(
+                app.displayLabel,
+                color = colors.inkPrimary,
+                fontSize = 8.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                textAlign = TextAlign.Center
+            )
+            if (isEditing) controls()
         }
     }
 }
@@ -207,6 +343,8 @@ private fun HomeWidgetCard(
     widgetHost: AppWidgetHost,
     manager: AppWidgetManager,
     isEditing: Boolean,
+    showMoveControls: Boolean,
+    modifier: Modifier = Modifier,
     onRemove: () -> Unit,
     onMove: (Int) -> Unit
 ) {
@@ -216,13 +354,15 @@ private fun HomeWidgetCard(
     val label = remember(providerInfo) {
         providerInfo?.loadLabel(context.packageManager)?.toString() ?: "UNAVAILABLE WIDGET"
     }
-    Column(Modifier.fillMaxWidth().background(colors.surface).border(1.dp, colors.border).padding(7.dp)) {
+    Column(modifier.background(colors.surface).border(1.dp, colors.border).padding(7.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(label.uppercase(), color = colors.inkSecondary, fontSize = 8.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (isEditing) {
                 Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    MiniHomeControl("↑") { onMove(-1) }
-                    MiniHomeControl("↓") { onMove(1) }
+                    if (showMoveControls) {
+                        MiniHomeControl("↑") { onMove(-1) }
+                        MiniHomeControl("↓") { onMove(1) }
+                    }
                     MiniHomeControl("×") { onRemove() }
                 }
             }
@@ -249,6 +389,17 @@ private fun HomeAction(label: String, modifier: Modifier = Modifier, onClick: ()
     ) {
         Text(label, color = colors.inkPrimary, fontSize = 8.sp, fontWeight = FontWeight.Bold)
     }
+}
+
+@Composable
+private fun HomeEmptyState(text: String) {
+    val colors = LocalRetroBitColors.current
+    Text(
+        text,
+        color = colors.inkMuted,
+        fontSize = 9.sp,
+        modifier = Modifier.fillMaxWidth().background(colors.surface).border(1.dp, colors.border).padding(10.dp)
+    )
 }
 
 @Composable
