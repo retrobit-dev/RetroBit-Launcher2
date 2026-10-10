@@ -1,0 +1,22 @@
+name: Publish RetroBit Launcher v2.5.0-retrobit
+
+on:
+  push:
+    branches:
+      - arena/225503a9-retrobit-launcher2
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out release helper and notes
+        uses: actions/checkout@v7
+
+      - name: Create release from the existing CI artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/create-github-release.sh
