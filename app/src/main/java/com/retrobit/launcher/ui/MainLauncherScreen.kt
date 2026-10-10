@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -33,6 +34,7 @@ import com.retrobit.launcher.data.AppModel
 import com.retrobit.launcher.data.AppRepository
 import com.retrobit.launcher.data.DeviceLockController
 import com.retrobit.launcher.data.LauncherFeatureStore
+import com.retrobit.launcher.data.LauncherFeatureStore.HomeGestureAction
 import com.retrobit.launcher.data.NotificationMonitorService
 import com.retrobit.launcher.data.UsageStatsRepository
 import com.retrobit.launcher.ui.components.*
@@ -74,6 +76,7 @@ fun MainLauncherScreen(
     var isFocusModeEnabled by remember { mutableStateOf(featureStore.focusModeEnabled) }
     var iconSizeDp by remember { mutableFloatStateOf(featureStore.iconSizeDp) }
     var isHomeDashboardOpen by remember { mutableStateOf(true) }
+    var keepDrawerOpen by remember { mutableStateOf(false) }
     var isHomeEditing by remember { mutableStateOf(false) }
     var isHomeShortcutPickerOpen by remember { mutableStateOf(false) }
     var homeShortcutPackages by remember { mutableStateOf(featureStore.getHomeShortcutPackages()) }
@@ -92,8 +95,8 @@ fun MainLauncherScreen(
     }
 
     // Timer Inactivity Auto-Hide (4.5 Detik)
-    LaunchedEffect(isAppListRevealed, lastInteractionTime, isAutoHideEnabled) {
-        if (isAppListRevealed && isAutoHideEnabled && searchQuery.isEmpty()) {
+    LaunchedEffect(isAppListRevealed, lastInteractionTime, isAutoHideEnabled, keepDrawerOpen) {
+        if (isAppListRevealed && isAutoHideEnabled && searchQuery.isEmpty() && !keepDrawerOpen) {
             delay(4500)
             isAppListRevealed = false
         }
@@ -208,6 +211,46 @@ fun MainLauncherScreen(
         homeWidgetIds = featureStore.getHomeWidgetIds()
     }
 
+    fun openAppDrawer() {
+        isHomeDashboardOpen = false
+        keepDrawerOpen = true
+        isAppListRevealed = true
+        selectedCategory = "ALL"
+        searchQuery = ""
+        registerInteraction()
+    }
+
+    fun returnHome() {
+        isHomeDashboardOpen = true
+        keepDrawerOpen = false
+        isAppListRevealed = false
+        searchQuery = ""
+    }
+
+    fun lockPhoneFromGesture() {
+        if (!featureStore.doubleTapToLockEnabled) return
+        if (!DeviceLockController.isAdminActive(context)) {
+            isDeviceAdminPromptOpen = true
+        } else if (!DeviceLockController.lockNow(context)) {
+            Toast.makeText(context, "Android could not lock the device.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun performHomeGesture(action: HomeGestureAction) {
+        when (action) {
+            HomeGestureAction.APP_DRAWER -> openAppDrawer()
+            HomeGestureAction.QUICK_CONTROLS -> isQuickControlsOpen = true
+            HomeGestureAction.EDIT_HOME -> isHomeEditing = !isHomeEditing
+            HomeGestureAction.MATRIX_RAIN -> isMatrixRainOpen = true
+            HomeGestureAction.LOCK_PHONE -> lockPhoneFromGesture()
+            HomeGestureAction.NONE -> Unit
+        }
+    }
+
+    BackHandler(enabled = !isHomeDashboardOpen) {
+        if (searchQuery.isNotEmpty()) searchQuery = "" else returnHome()
+    }
+
     val lifecycleOwner = context as? LifecycleOwner
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -261,10 +304,7 @@ fun MainLauncherScreen(
     fun handleVoiceCommand(spoken: String) {
         val command = spoken.trim().lowercase()
         when {
-            command == "home" || command == "beranda" -> {
-                isHomeDashboardOpen = true
-                searchQuery = ""
-            }
+            command == "home" || command == "beranda" -> returnHome()
             command == "matrix" || command.contains("matrix rain") || command.contains("hujan matrix") -> {
                 isMatrixRainOpen = true
             }
@@ -279,13 +319,9 @@ fun MainLauncherScreen(
                 isTerminalOpen = true
             }
             command in setOf("refresh", "segarkan", "refresh layar") -> isEpaperRefreshing = true
-            command in setOf("show apps", "tampilkan aplikasi", "buka daftar aplikasi", "daftar aplikasi") -> {
-                isHomeDashboardOpen = false
-                searchQuery = ""
-                registerInteraction()
-            }
+            command in setOf("show apps", "tampilkan aplikasi", "buka daftar aplikasi", "daftar aplikasi") -> openAppDrawer()
             command.startsWith("cari ") || command.startsWith("search ") -> {
-                isHomeDashboardOpen = false
+                openAppDrawer()
                 searchQuery = command.substringAfter(' ')
                 registerInteraction()
             }
@@ -302,16 +338,14 @@ fun MainLauncherScreen(
                     onThemeChange(next)
                     isEpaperRefreshing = true
                 } else {
-                    isHomeDashboardOpen = false
+                    openAppDrawer()
                     searchQuery = spoken
                 }
             }
             command.startsWith("buka ") || command.startsWith("open ") -> {
                 val appQuery = command.substringAfter(' ')
                 if (appQuery in setOf("daftar", "apps", "aplikasi")) {
-                    isHomeDashboardOpen = false
-                    searchQuery = ""
-                    registerInteraction()
+                    openAppDrawer()
                 } else {
                     val match = allApps
                         .mapNotNull { app -> FuzzySearch.score(appQuery, app.displayLabel)?.let { app to it } }
@@ -319,13 +353,14 @@ fun MainLauncherScreen(
                     if (match != null && match.second >= 250) {
                         launchAppWithPolicies(match.first)
                     } else {
+                        openAppDrawer()
                         searchQuery = appQuery
                         registerInteraction()
                     }
                 }
             }
             else -> {
-                isHomeDashboardOpen = false
+                openAppDrawer()
                 searchQuery = spoken
                 registerInteraction()
             }
@@ -424,6 +459,7 @@ fun MainLauncherScreen(
                     onSelectCategory = {
                         selectedCategory = it
                         isHomeDashboardOpen = false
+                        keepDrawerOpen = true
                         registerInteraction()
                     },
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
@@ -449,8 +485,11 @@ fun MainLauncherScreen(
                 BasicTextField(
                     value = searchQuery,
                     onValueChange = {
+                        if (it.isNotBlank()) {
+                            isHomeDashboardOpen = false
+                            keepDrawerOpen = true
+                        }
                         searchQuery = it
-                        if (it.isNotBlank()) isHomeDashboardOpen = false
                         registerInteraction()
                     },
                     textStyle = TextStyle(
@@ -502,21 +541,6 @@ fun MainLauncherScreen(
                 VoiceCommandButton(onRecognized = ::handleVoiceCommand)
             }
 
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                HomeSurfaceButton("HOME", isHomeDashboardOpen, Modifier.weight(1f)) {
-                    isHomeDashboardOpen = true
-                    searchQuery = ""
-                    isAppListRevealed = false
-                }
-                HomeSurfaceButton("APPS", !isHomeDashboardOpen, Modifier.weight(1f)) {
-                    isHomeDashboardOpen = false
-                    registerInteraction()
-                }
-            }
-
             // 5. Main Body: scrollable Home dashboard or Niagara-style app drawer
             Box(
                 modifier = Modifier
@@ -541,7 +565,12 @@ fun MainLauncherScreen(
                         },
                         onMoveShortcut = ::moveHomeShortcut,
                         onRemoveWidget = ::removeHomeWidget,
-                        onMoveWidget = ::moveHomeWidget
+                        onMoveWidget = ::moveHomeWidget,
+                        modifier = Modifier.padding(end = 30.dp)
+                    )
+                    RightEdgeAppDrawerHandle(
+                        onOpen = { openAppDrawer() },
+                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 4.dp)
                     )
                 } else {
                 // KONDISI 1: STANDBY STEALTH BANNER (Muncul saat daftar aplikasi otomatis tersembunyi)
@@ -662,25 +691,13 @@ fun MainLauncherScreen(
 
             if (isHomeDashboardOpen) {
                 HomeGesturePad(
-                    onDoubleTap = {
-                        if (featureStore.doubleTapToLockEnabled) {
-                            if (!DeviceLockController.isAdminActive(context)) {
-                                isDeviceAdminPromptOpen = true
-                            } else if (!DeviceLockController.lockNow(context)) {
-                                Toast.makeText(context, "Android could not lock the device.", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    },
+                    doubleTapEnabled = featureStore.doubleTapToLockEnabled,
+                    swipeUpLabel = featureStore.homeSwipeUpAction.label,
+                    swipeDownLabel = featureStore.homeSwipeDownAction.label,
+                    onDoubleTap = { lockPhoneFromGesture() },
                     onLongPress = { isHomeEditing = !isHomeEditing },
-                    onSwipeUp = {
-                        if (featureStore.homeSwipeUpEnabled) {
-                            isHomeDashboardOpen = false
-                            registerInteraction()
-                        }
-                    },
-                    onSwipeDown = {
-                        if (featureStore.homeSwipeDownEnabled) isQuickControlsOpen = true
-                    }
+                    onSwipeUp = { performHomeGesture(featureStore.homeSwipeUpAction) },
+                    onSwipeDown = { performHomeGesture(featureStore.homeSwipeDownAction) }
                 )
             }
 
@@ -699,6 +716,7 @@ fun MainLauncherScreen(
                     DeckButton(label = ">_ TERM") { isTerminalOpen = true }
                     DeckButton(label = if (isAutoHideEnabled) "STEALTH: ON" else "STEALTH: OFF") {
                         isAutoHideEnabled = !isAutoHideEnabled
+                        keepDrawerOpen = false
                         if (!isAutoHideEnabled) isAppListRevealed = true
                     }
                 }
@@ -923,26 +941,6 @@ fun DeckButton(
             fontFamily = FontFamily.Monospace,
             color = colors.inkPrimary,
             letterSpacing = 0.5.sp
-        )
-    }
-}
-
-@Composable
-private fun HomeSurfaceButton(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val colors = LocalRetroBitColors.current
-    Box(
-        modifier = modifier
-            .background(if (selected) colors.inkPrimary else colors.surface)
-            .border(1.dp, colors.border)
-            .clickable(onClick = onClick)
-            .padding(vertical = 6.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            label,
-            color = if (selected) colors.background else colors.inkPrimary,
-            fontSize = 8.sp,
-            fontWeight = FontWeight.Bold
         )
     }
 }

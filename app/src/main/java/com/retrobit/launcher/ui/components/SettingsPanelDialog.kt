@@ -75,8 +75,8 @@ fun SettingsPanelDialog(
     var lockscreenEnabled by remember { mutableStateOf(store.lockscreenEnabled) }
     var pinDraft by remember { mutableStateOf("") }
     var doubleTapLockEnabled by remember { mutableStateOf(store.doubleTapToLockEnabled) }
-    var swipeUpAppsEnabled by remember { mutableStateOf(store.homeSwipeUpEnabled) }
-    var swipeDownControlsEnabled by remember { mutableStateOf(store.homeSwipeDownEnabled) }
+    var swipeUpAction by remember { mutableStateOf(store.homeSwipeUpAction) }
+    var swipeDownAction by remember { mutableStateOf(store.homeSwipeDownAction) }
     var deviceAdminActive by remember(context) { mutableStateOf(DeviceLockController.isAdminActive(context)) }
     val iconPacks = remember(context) { IconPackManager(context).installedPacks() }
 
@@ -321,14 +321,24 @@ fun SettingsPanelDialog(
                             doubleTapLockEnabled = it
                             store.doubleTapToLockEnabled = it
                         }
-                        ToggleSetting("SWIPE UP // APP DRAWER", "Swipe upward on the gesture pad to reveal all apps.", swipeUpAppsEnabled) {
-                            swipeUpAppsEnabled = it
-                            store.homeSwipeUpEnabled = it
-                        }
-                        ToggleSetting("SWIPE DOWN // QUICK CONTROLS", "Swipe downward on the gesture pad to open device controls.", swipeDownControlsEnabled) {
-                            swipeDownControlsEnabled = it
-                            store.homeSwipeDownEnabled = it
-                        }
+                        SettingAction(
+                            title = "SWIPE UP // ${swipeUpAction.label}",
+                            detail = "Tap to cycle: app drawer, quick controls, edit home, Matrix Rain, lock phone, disabled.",
+                            onClick = {
+                                swipeUpAction = swipeUpAction.next()
+                                store.homeSwipeUpAction = swipeUpAction
+                                statusMessage = "Swipe up: ${swipeUpAction.label}"
+                            }
+                        )
+                        SettingAction(
+                            title = "SWIPE DOWN // ${swipeDownAction.label}",
+                            detail = "Tap to cycle: app drawer, quick controls, edit home, Matrix Rain, lock phone, disabled.",
+                            onClick = {
+                                swipeDownAction = swipeDownAction.next()
+                                store.homeSwipeDownAction = swipeDownAction
+                                statusMessage = "Swipe down: ${swipeDownAction.label}"
+                            }
+                        )
                         SettingAction(
                             title = if (deviceAdminActive) "DEVICE ADMIN: ACTIVE" else "ACTIVATE DEVICE ADMIN",
                             detail = if (deviceAdminActive) "Double-tap the gesture pad to lock the phone. You can remove approval in Android settings." else "Android will ask for approval before double-tap can lock the phone.",
@@ -337,7 +347,7 @@ fun SettingsPanelDialog(
                         if (deviceAdminActive) {
                             SettingAction("REMOVE DEVICE ADMIN APPROVAL", "Opens Android's confirmation screen.", onRemoveDeviceAdmin)
                         }
-                        Text("Gesture pad: double tap = lock · swipe up = app drawer · swipe down = quick controls · long press = edit home.", color = colors.inkMuted, fontSize = 8.sp)
+                        Text("Gesture pad: double tap can lock the phone; swipe actions are selected above; long press edits the home screen.", color = colors.inkMuted, fontSize = 8.sp)
                         SectionLabel("PRODUCTIVITY")
                         SettingAction("OPEN TODO WIDGET", "Add, check off, and remove locally stored tasks.", onOpenTodo)
                         SettingAction("OPEN CALENDAR", "Month/day view; optionally reads device calendar events.", onOpenCalendar)

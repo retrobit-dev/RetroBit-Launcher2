@@ -15,6 +15,17 @@ class LauncherFeatureStore(context: Context) {
 
     data class TodoItem(val id: Long, val title: String, val done: Boolean)
 
+    enum class HomeGestureAction(val label: String) {
+        APP_DRAWER("APP DRAWER"),
+        QUICK_CONTROLS("QUICK CONTROLS"),
+        EDIT_HOME("EDIT HOME"),
+        MATRIX_RAIN("MATRIX RAIN"),
+        LOCK_PHONE("LOCK PHONE"),
+        NONE("DISABLED");
+
+        fun next(): HomeGestureAction = entries[(ordinal + 1) % entries.size]
+    }
+
     var weatherCity: String
         get() = prefs.getString(KEY_WEATHER_CITY, "Semarang") ?: "Semarang"
         set(value) { prefs.edit().putString(KEY_WEATHER_CITY, value.trim()).apply() }
@@ -47,13 +58,18 @@ class LauncherFeatureStore(context: Context) {
         get() = prefs.getBoolean(KEY_DOUBLE_TAP_LOCK, true)
         set(value) { prefs.edit().putBoolean(KEY_DOUBLE_TAP_LOCK, value).apply() }
 
-    var homeSwipeUpEnabled: Boolean
-        get() = prefs.getBoolean(KEY_HOME_SWIPE_UP, true)
-        set(value) { prefs.edit().putBoolean(KEY_HOME_SWIPE_UP, value).apply() }
+    var homeSwipeUpAction: HomeGestureAction
+        get() = gestureAction(KEY_HOME_SWIPE_UP, HomeGestureAction.APP_DRAWER)
+        set(value) { prefs.edit().putString(KEY_HOME_SWIPE_UP, value.name).apply() }
 
-    var homeSwipeDownEnabled: Boolean
-        get() = prefs.getBoolean(KEY_HOME_SWIPE_DOWN, true)
-        set(value) { prefs.edit().putBoolean(KEY_HOME_SWIPE_DOWN, value).apply() }
+    var homeSwipeDownAction: HomeGestureAction
+        get() = gestureAction(KEY_HOME_SWIPE_DOWN, HomeGestureAction.QUICK_CONTROLS)
+        set(value) { prefs.edit().putString(KEY_HOME_SWIPE_DOWN, value.name).apply() }
+
+    private fun gestureAction(key: String, default: HomeGestureAction): HomeGestureAction =
+        prefs.getString(key, null)?.let { value ->
+            runCatching { HomeGestureAction.valueOf(value) }.getOrNull()
+        } ?: default
 
     fun getHomeShortcutPackages(): List<String> = readStringList(KEY_HOME_SHORTCUTS)
 
@@ -299,8 +315,8 @@ class LauncherFeatureStore(context: Context) {
         private const val KEY_ICON_PACK = "feature_icon_pack"
         private const val KEY_LOCKSCREEN = "feature_lockscreen"
         private const val KEY_DOUBLE_TAP_LOCK = "gesture_double_tap_lock"
-        private const val KEY_HOME_SWIPE_UP = "gesture_home_swipe_up"
-        private const val KEY_HOME_SWIPE_DOWN = "gesture_home_swipe_down"
+        private const val KEY_HOME_SWIPE_UP = "gesture_home_swipe_up_action"
+        private const val KEY_HOME_SWIPE_DOWN = "gesture_home_swipe_down_action"
         private const val KEY_HOME_SHORTCUTS = "home_shortcut_packages"
         private const val KEY_HOME_WIDGETS = "home_widget_ids"
         private const val KEY_LOCKSCREEN_PIN_HASH = "feature_lockscreen_pin_hash"
