@@ -25,18 +25,18 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # Proyek tidak menyertakan gradle-wrapper.jar, jadi gunakan Gradle resmi
-      # versi yang sama dengan gradle-wrapper.properties (8.7).
+      # Wrapper resmi Gradle 8.7 kini lengkap di repo (gradlew, gradlew.bat,
+      # gradle/wrapper/gradle-wrapper.jar) — versi Gradle ditentukan oleh
+      # gradle/wrapper/gradle-wrapper.properties. Action ini dipakai untuk
+      # caching dependensi + validasi checksum wrapper, bukan install Gradle.
       # Catatan: pakai v5, bukan v6 — v6 mengubah lisensi caching-nya (proprietary).
-      - name: Setup Gradle
+      - name: Setup Gradle (caching & wrapper validation)
         uses: gradle/actions/setup-gradle@v5
-        with:
-          gradle-version: '8.7'
 
-      - name: Build Debug APK with Gradle
+      - name: Build Debug APK with Gradle Wrapper
         run: |
           set -o pipefail
-          gradle assembleDebug --stacktrace 2>&1 | tee build-output.log
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee build-output.log
 
       - name: Upload build log (always)
         if: always()
