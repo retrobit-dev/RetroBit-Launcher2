@@ -855,14 +855,14 @@ private fun HomeWidgetEditDialog(
             Text("EDIT HOME CARD", color = colors.inkPrimary, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
             Text(widgetLabel.uppercase(), color = colors.inkSecondary, fontSize = 8.sp)
             Spacer(Modifier.height(8.dp))
-            SectionLabel("WIDTH // ${widgetSize.widthPercent}%")
+            HomeSectionLabel("WIDTH // ${widgetSize.widthPercent}%")
             Slider(
                 value = widgetSize.widthPercent.toFloat(),
                 onValueChange = { onSizeChange(widgetSize.copy(widthPercent = it.toInt().coerceIn(50, 100))) },
                 valueRange = 50f..100f,
                 steps = 9
             )
-            SectionLabel("HEIGHT // ${widgetSize.heightDp} DP")
+            HomeSectionLabel("HEIGHT // ${widgetSize.heightDp} DP")
             Slider(
                 value = widgetSize.heightDp.toFloat().coerceIn(minimumHeightDp.toFloat(), 600f),
                 onValueChange = { onSizeChange(widgetSize.copy(heightDp = it.toInt().coerceIn(minimumHeightDp, 600))) },
@@ -908,14 +908,14 @@ private fun HomeShortcutEditDialog(
             Text(app.displayLabel, color = colors.inkSecondary, fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(8.dp))
             if (layout == HomeContentLayout.HORIZONTAL) {
-                SectionLabel("WIDTH // $shownWidthDp DP")
+                HomeSectionLabel("WIDTH // $shownWidthDp DP")
                 Slider(
                     value = shownWidthDp.toFloat(),
                     onValueChange = { onSizeChange(size.copy(widthDp = it.toInt().coerceIn(56, maxWidthDp.toInt()))) },
                     valueRange = 56f..maxWidthDp
                 )
             } else {
-                SectionLabel("WIDTH // ${size.widthPercent}%")
+                HomeSectionLabel("WIDTH // ${size.widthPercent}%")
                 Slider(
                     value = size.widthPercent.toFloat(),
                     onValueChange = { onSizeChange(size.copy(widthPercent = it.toInt().coerceIn(50, 100))) },
@@ -923,7 +923,7 @@ private fun HomeShortcutEditDialog(
                     steps = 9
                 )
             }
-            SectionLabel("HEIGHT // $shownHeightDp DP")
+            HomeSectionLabel("HEIGHT // $shownHeightDp DP")
             Slider(
                 value = shownHeightDp.toFloat().coerceIn(minimumHeightDp.toFloat(), 320f),
                 onValueChange = { onSizeChange(size.copy(heightDp = it.toInt().coerceIn(minimumHeightDp, 320))) },
