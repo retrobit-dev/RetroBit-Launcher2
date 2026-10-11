@@ -53,6 +53,8 @@ fun MainLauncherScreen(
     repository: AppRepository,
     currentTheme: RetroBitThemeMode,
     onThemeChange: (RetroBitThemeMode) -> Unit,
+    launcherTextScale: Float,
+    onLauncherTextScaleChange: (Float) -> Unit,
     onCustomPaletteChange: (RetroBitColors?) -> Unit = {}
 ) {
     val colors = LocalRetroBitColors.current
@@ -77,6 +79,8 @@ fun MainLauncherScreen(
     var isMediaVisible by remember { mutableStateOf(true) }
     var isFocusModeEnabled by remember { mutableStateOf(featureStore.focusModeEnabled) }
     var iconSizeDp by remember { mutableFloatStateOf(featureStore.iconSizeDp) }
+    var appDrawerAutoHideDelaySeconds by remember { mutableIntStateOf(featureStore.appDrawerAutoHideDelaySeconds) }
+    var homeSwipeThresholdDp by remember { mutableFloatStateOf(featureStore.homeSwipeThresholdDp) }
     var isHomeDashboardOpen by remember { mutableStateOf(true) }
     var keepDrawerOpen by remember { mutableStateOf(false) }
     var isHomeEditing by remember { mutableStateOf(false) }
@@ -91,17 +95,17 @@ fun MainLauncherScreen(
     // ==========================================================================
     var isAppListRevealed by remember { mutableStateOf(false) }
     var lastInteractionTime by remember { mutableLongStateOf(0L) }
-    var isAutoHideEnabled by remember { mutableStateOf(true) }
+    var isAutoHideEnabled by remember { mutableStateOf(featureStore.appDrawerAutoHideEnabled) }
 
     fun registerInteraction() {
         isAppListRevealed = true
         lastInteractionTime = System.currentTimeMillis()
     }
 
-    // Timer Inactivity Auto-Hide (4.5 Detik)
-    LaunchedEffect(isAppListRevealed, lastInteractionTime, isAutoHideEnabled, keepDrawerOpen) {
+    // Timer Inactivity Auto-Hide (user-adjustable)
+    LaunchedEffect(isAppListRevealed, lastInteractionTime, isAutoHideEnabled, keepDrawerOpen, searchQuery, appDrawerAutoHideDelaySeconds) {
         if (isAppListRevealed && isAutoHideEnabled && searchQuery.isEmpty() && !keepDrawerOpen) {
-            delay(4500)
+            delay(appDrawerAutoHideDelaySeconds * 1000L)
             isAppListRevealed = false
         }
     }
@@ -474,6 +478,7 @@ fun MainLauncherScreen(
             .homeScreenGestureDetector(
                 enabled = isHomeDashboardOpen,
                 doubleTapEnabled = true,
+                swipeThresholdDp = homeSwipeThresholdDp,
                 onDoubleTap = {
                     if (featureStore.doubleTapToLockEnabled) requestDeviceLock()
                 },
@@ -762,6 +767,7 @@ fun MainLauncherScreen(
                     DeckButton(label = ">_ TERM") { isTerminalOpen = true }
                     DeckButton(label = if (isAutoHideEnabled) "STEALTH: ON" else "STEALTH: OFF") {
                         isAutoHideEnabled = !isAutoHideEnabled
+                        featureStore.appDrawerAutoHideEnabled = isAutoHideEnabled
                         keepDrawerOpen = false
                         if (!isAutoHideEnabled) isAppListRevealed = true
                     }
@@ -952,6 +958,10 @@ fun MainLauncherScreen(
                 currentTheme = currentTheme,
                 focusModeEnabled = isFocusModeEnabled,
                 iconSizeDp = iconSizeDp,
+                launcherTextScale = launcherTextScale,
+                appDrawerAutoHideEnabled = isAutoHideEnabled,
+                appDrawerAutoHideDelaySeconds = appDrawerAutoHideDelaySeconds,
+                homeSwipeThresholdDp = homeSwipeThresholdDp,
                 onFocusModeChanged = {
                     isFocusModeEnabled = it
                     featureStore.focusModeEnabled = it
@@ -959,6 +969,19 @@ fun MainLauncherScreen(
                 onIconSizeChanged = {
                     iconSizeDp = it
                     featureStore.iconSizeDp = it
+                },
+                onLauncherTextScaleChanged = onLauncherTextScaleChange,
+                onAppDrawerAutoHideEnabledChanged = {
+                    isAutoHideEnabled = it
+                    featureStore.appDrawerAutoHideEnabled = it
+                },
+                onAppDrawerAutoHideDelayChanged = {
+                    appDrawerAutoHideDelaySeconds = it
+                    featureStore.appDrawerAutoHideDelaySeconds = it
+                },
+                onHomeSwipeThresholdChanged = {
+                    homeSwipeThresholdDp = it
+                    featureStore.homeSwipeThresholdDp = it
                 },
                 onThemeChange = { onThemeChange(it); triggerRefreshCycle() },
                 onCustomPaletteChange = onCustomPaletteChange,

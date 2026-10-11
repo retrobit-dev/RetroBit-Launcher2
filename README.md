@@ -10,7 +10,7 @@
 1. **Personal Deck + Stealth App Drawer:**
    - Launcher membuka homescreen Personal Deck berisi shortcut aplikasi dan widget Android yang dapat discroll.
    - Handle `A–Z` di tepi kanan membuka app drawer; handle menyusut otomatis setelah 2.5 detik dan tetap bisa diketuk atau digeser dari tepi.
-   - App drawer otomatis kembali tersembunyi setelah 4.5 detik tanpa interaksi. Atur `STEALTH: ON` atau `STEALTH: OFF` melalui toolbar bawah.
+   - App drawer dapat otomatis tersembunyi setelah 2–10 detik tanpa interaksi, atau dibiarkan terbuka. Atur cepat melalui tombol `STEALTH` di toolbar atau tab `TOOLS`.
 2. **Ergonomic Niagara Curved Thumb Arc:**
    - Susunan aplikasi melengkung vertikal yang mengikuti jangkauan jempol secara natural berbasis fungsi sinus matematis.
 3. **Fluid Alphabet Scrubber (A–Z Slider):**
@@ -55,7 +55,7 @@ Buka **SETTINGS** di toolbar bawah untuk panel lima tab: `PROFILE`, `WELLBEING`,
 
 - **Home Workspace:** homescreen menyediakan shortcut aplikasi dan widget Android. Tekan `EDIT` atau tahan layar untuk mengatur item; saat Edit aktif, pilih susunan `HORIZONTAL`, `VERTICAL`, atau `MANUAL` secara terpisah untuk ikon aplikasi dan widget. Mode Manual menyediakan kontrol `↑ ↓` untuk mengurutkan dan `×` untuk menghapus. `+ APP` membuka pemilih aplikasi; `+ WIDGET` membuka pemilih widget sistem. Tahan aplikasi di drawer, lalu pilih `ADD TO HOME SCREEN` untuk menyematkannya.
 - **Custom App Icons:** tahan ikon shortcut di Home atau buka menu aplikasi dari drawer, lalu pilih `CHANGE APP ICON`. Pilih gambar dari perangkat atau ikon yang cocok dari icon pack kompatibel yang terpasang. Override yang sama dipakai di Home dan drawer; reset mengembalikan icon pack global atau ikon sistem.
-- **Gestures:** handle `A–Z` di sisi kanan membuka app drawer dengan ketukan atau geser kiri dan otomatis menyusut menjadi garis tipis. Tombol Back kembali ke homescreen. Gesture bekerja di seluruh halaman Home—double-tap untuk mengunci, swipe cepat menjalankan aksi atas/bawah, dan tahan untuk masuk/keluar mode edit. Aksi swipe dapat dipilih di tab `TOOLS`. Double-tap lock memerlukan aktivasi Device Admin secara eksplisit di Android; aplikasi hanya meminta kebijakan `FORCE LOCK`, tidak meminta hak wipe/manage perangkat.
+- **Gestures:** handle `A–Z` di sisi kanan membuka app drawer dengan ketukan atau geser kiri dan otomatis menyusut menjadi garis tipis. Tombol Back kembali ke homescreen. Gesture bekerja di seluruh halaman Home—double-tap untuk mengunci, swipe cepat menjalankan aksi atas/bawah, dan tahan untuk masuk/keluar mode edit. Aksi swipe dan sensitivitas jarak swipe dapat diatur di tab `TOOLS`; waktu auto-hide drawer juga dapat disesuaikan. Double-tap lock memerlukan aktivasi Device Admin secara eksplisit di Android; aplikasi hanya meminta kebijakan `FORCE LOCK`, tidak meminta hak wipe/manage perangkat.
 
 - **Voice Command (Indonesia / English):** tombol `MIC` di samping pencarian. Perintah meliputi `cari/search`, `buka/open [nama aplikasi]`, `tema/theme [light|dark|pocket|stark]`, `tampilkan aplikasi`, `refresh`, `matrix`, `tiles`, `todo`, `calendar`, dan `help`. Pilih bahasa `ID` atau `EN` di samping tombol mic.
 - **Digital Wellbeing:** total waktu layar dan waktu per aplikasi dibaca dari Android Usage Stats. Aktifkan *Usage Access* di tab `WELLBEING`; di sana juga tersedia Focus Mode (hanya favorit) dan batas harian aplikasi 15/30/60 menit.
@@ -66,7 +66,7 @@ Buka **SETTINGS** di toolbar bawah untuk panel lima tab: `PROFILE`, `WELLBEING`,
 - **Search:** pencarian fuzzy berperingkat tetap bekerja bersama filter kategori.
 - **Easter eggs:** buka Matrix Rain dari tab `TOOLS` atau perintah `matrix`. Kode Konami dapat dimasukkan sebagai perintah terminal berurutan: `UP UP DOWN DOWN LEFT RIGHT LEFT RIGHT B A`.
 - **Calendar & Todo:** kalender dimulai dari hari Senin, membaca agenda perangkat setelah izin baca diberikan, dan dapat menambahkan agenda sepanjang hari atau berdurasi dengan judul serta catatan ke kalender Android yang dapat ditulis (memerlukan izin baca/tulis); todo disimpan secara lokal.
-- **Appearance:** empat tema bawaan, ukuran ikon yang bisa diatur, dukungan icon pack format ADW `appfilter.xml`, dan impor palet JSON. Format palet yang diterima terlihat di `APPEARANCE`.
+- **Appearance:** empat tema bawaan, ukuran ikon dan skala font launcher yang bisa diatur, dukungan icon pack format ADW `appfilter.xml`, dan impor palet JSON. Skala font mempertahankan pengaturan aksesibilitas font Android; format palet yang diterima terlihat di `APPEARANCE`.
 - **Cyberdeck Lockscreen:** overlay PIN lokal opsional. Ini hanya tampilan pengunci di dalam launcher dan **tidak menggantikan** lockscreen/keamanan Android.
 
 Fitur yang memerlukan akses khusus hanya bekerja setelah pengguna memberi izin. Wi-Fi, Bluetooth, dan mode pesawat tidak dapat diubah diam-diam oleh aplikasi biasa di Android modern; launcher membuka panel Settings yang sesuai.

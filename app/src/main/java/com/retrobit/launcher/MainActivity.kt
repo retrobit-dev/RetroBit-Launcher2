@@ -10,6 +10,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import com.retrobit.launcher.data.AppRepository
 import com.retrobit.launcher.data.LauncherFeatureStore
 import com.retrobit.launcher.ui.MainLauncherScreen
@@ -41,22 +43,33 @@ class MainActivity : ComponentActivity() {
                     .getOrDefault(RetroBitThemeMode.LIGHT_EINK)
             }
             var currentTheme by remember { mutableStateOf(initialTheme) }
+            var launcherTextScale by remember { mutableFloatStateOf(featureStore.launcherTextScale) }
             var customColors by remember {
                 mutableStateOf(featureStore.customPaletteJson?.let { PaletteCodec.parse(it) })
             }
 
             RetroBitLauncherTheme(themeMode = currentTheme, customColors = customColors) {
-                MainLauncherScreen(
-                    repository = appRepository,
-                    currentTheme = currentTheme,
-                    onThemeChange = {
-                        currentTheme = it
-                        featureStore.themeModeName = it.name
-                        featureStore.customPaletteJson = null
-                        customColors = null
-                    },
-                    onCustomPaletteChange = { customColors = it }
-                )
+                val systemDensity = LocalDensity.current
+                CompositionLocalProvider(
+                    LocalDensity provides Density(systemDensity.density, systemDensity.fontScale * launcherTextScale)
+                ) {
+                    MainLauncherScreen(
+                        repository = appRepository,
+                        currentTheme = currentTheme,
+                        launcherTextScale = launcherTextScale,
+                        onLauncherTextScaleChange = {
+                            launcherTextScale = it
+                            featureStore.launcherTextScale = it
+                        },
+                        onThemeChange = {
+                            currentTheme = it
+                            featureStore.themeModeName = it.name
+                            featureStore.customPaletteJson = null
+                            customColors = null
+                        },
+                        onCustomPaletteChange = { customColors = it }
+                    )
+                }
             }
         }
     }

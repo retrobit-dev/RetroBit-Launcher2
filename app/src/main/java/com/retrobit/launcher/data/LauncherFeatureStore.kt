@@ -54,6 +54,22 @@ class LauncherFeatureStore(context: Context) {
         get() = prefs.getFloat(KEY_ICON_SIZE, 42f).coerceIn(28f, 72f)
         set(value) { prefs.edit().putFloat(KEY_ICON_SIZE, value.coerceIn(28f, 72f)).apply() }
 
+    var launcherTextScale: Float
+        get() = prefs.getFloat(KEY_LAUNCHER_TEXT_SCALE, 1f).coerceIn(0.8f, 1.5f)
+        set(value) { prefs.edit().putFloat(KEY_LAUNCHER_TEXT_SCALE, value.coerceIn(0.8f, 1.5f)).apply() }
+
+    var appDrawerAutoHideEnabled: Boolean
+        get() = prefs.getBoolean(KEY_DRAWER_AUTO_HIDE_ENABLED, true)
+        set(value) { prefs.edit().putBoolean(KEY_DRAWER_AUTO_HIDE_ENABLED, value).apply() }
+
+    var appDrawerAutoHideDelaySeconds: Int
+        get() = prefs.getInt(KEY_DRAWER_AUTO_HIDE_DELAY_SECONDS, 5).coerceIn(2, 10)
+        set(value) { prefs.edit().putInt(KEY_DRAWER_AUTO_HIDE_DELAY_SECONDS, value.coerceIn(2, 10)).apply() }
+
+    var homeSwipeThresholdDp: Float
+        get() = prefs.getFloat(KEY_HOME_SWIPE_THRESHOLD_DP, 96f).coerceIn(48f, 160f)
+        set(value) { prefs.edit().putFloat(KEY_HOME_SWIPE_THRESHOLD_DP, value.coerceIn(48f, 160f)).apply() }
+
     var selectedIconPack: String?
         get() = prefs.getString(KEY_ICON_PACK, null)
         set(value) { prefs.edit().putString(KEY_ICON_PACK, value).apply() }
@@ -333,6 +349,10 @@ class LauncherFeatureStore(context: Context) {
         private const val KEY_VOICE_LANGUAGE = "voice_language"
         private const val KEY_FOCUS_MODE = "feature_focus_mode"
         private const val KEY_ICON_SIZE = "feature_icon_size"
+        private const val KEY_LAUNCHER_TEXT_SCALE = "feature_launcher_text_scale"
+        private const val KEY_DRAWER_AUTO_HIDE_ENABLED = "app_drawer_auto_hide_enabled"
+        private const val KEY_DRAWER_AUTO_HIDE_DELAY_SECONDS = "app_drawer_auto_hide_delay_seconds"
+        private const val KEY_HOME_SWIPE_THRESHOLD_DP = "home_swipe_threshold_dp"
         private const val KEY_ICON_PACK = "feature_icon_pack"
         private const val KEY_LOCKSCREEN = "feature_lockscreen"
         private const val KEY_DOUBLE_TAP_LOCK = "gesture_double_tap_lock"

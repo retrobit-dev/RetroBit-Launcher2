@@ -45,8 +45,16 @@ fun SettingsPanelDialog(
     currentTheme: RetroBitThemeMode,
     focusModeEnabled: Boolean,
     iconSizeDp: Float,
+    launcherTextScale: Float,
+    appDrawerAutoHideEnabled: Boolean,
+    appDrawerAutoHideDelaySeconds: Int,
+    homeSwipeThresholdDp: Float,
     onFocusModeChanged: (Boolean) -> Unit,
     onIconSizeChanged: (Float) -> Unit,
+    onLauncherTextScaleChanged: (Float) -> Unit,
+    onAppDrawerAutoHideEnabledChanged: (Boolean) -> Unit,
+    onAppDrawerAutoHideDelayChanged: (Int) -> Unit,
+    onHomeSwipeThresholdChanged: (Float) -> Unit,
     onThemeChange: (RetroBitThemeMode) -> Unit,
     onCustomPaletteChange: (RetroBitColors?) -> Unit,
     onRefreshApps: () -> Unit,
@@ -256,6 +264,27 @@ fun SettingsPanelDialog(
                         SectionLabel("ICON SIZE")
                         Text("${iconSizeDp.toInt()} dp", color = colors.inkSecondary, fontSize = 9.sp)
                         Slider(value = iconSizeDp, onValueChange = onIconSizeChanged, valueRange = 28f..72f)
+                        SectionLabel("FONT SIZE")
+                        Text(
+                            "${(launcherTextScale * 100).toInt()}% OF NORMAL",
+                            color = colors.inkSecondary,
+                            fontSize = 9.sp
+                        )
+                        Slider(
+                            value = launcherTextScale,
+                            onValueChange = onLauncherTextScaleChanged,
+                            valueRange = 0.8f..1.5f,
+                            steps = 6
+                        )
+                        Text(
+                            "Scales launcher text and keeps Android's system font scaling active.",
+                            color = colors.inkMuted,
+                            fontSize = 8.sp
+                        )
+                        SettingAction("RESET FONT SIZE", "Return launcher text to 100% of normal.") {
+                            onLauncherTextScaleChanged(1f)
+                            statusMessage = "Font size reset to 100%."
+                        }
                         SectionLabel("ICON PACK")
                         SettingAction("SYSTEM ICONS", "Use the app icons supplied by Android.", onClick = {
                             store.selectedIconPack = null
@@ -312,6 +341,22 @@ fun SettingsPanelDialog(
                         SettingAction("QUICK CONTROLS", "Volume, brightness, flashlight, and system connectivity settings.", onOpenQuickControls)
                     }
                     else -> {
+                        SectionLabel("APP DRAWER")
+                        ToggleSetting(
+                            "AUTO-HIDE APP DRAWER",
+                            "Hide the drawer after ${appDrawerAutoHideDelaySeconds}s without interaction. The STEALTH button is a shortcut for this setting.",
+                            appDrawerAutoHideEnabled
+                        ) {
+                            onAppDrawerAutoHideEnabledChanged(it)
+                            statusMessage = if (it) "App drawer auto-hide enabled." else "App drawer will stay open until closed."
+                        }
+                        Text("AUTO-HIDE DELAY // $appDrawerAutoHideDelaySeconds SECONDS", color = colors.inkSecondary, fontSize = 9.sp)
+                        Slider(
+                            value = appDrawerAutoHideDelaySeconds.toFloat(),
+                            onValueChange = { onAppDrawerAutoHideDelayChanged(it.toInt()) },
+                            valueRange = 2f..10f,
+                            steps = 7
+                        )
                         SectionLabel("HOME GESTURES")
                         ToggleSetting(
                             "DOUBLE TAP TO LOCK PHONE",
@@ -339,6 +384,18 @@ fun SettingsPanelDialog(
                                 store.homeSwipeDownAction = swipeDownAction
                                 statusMessage = "Swipe down: ${swipeDownAction.label}"
                             }
+                        )
+                        SectionLabel("SWIPE SENSITIVITY")
+                        Text(
+                            "${homeSwipeThresholdDp.toInt()} dp // LOWER IS MORE SENSITIVE",
+                            color = colors.inkSecondary,
+                            fontSize = 9.sp
+                        )
+                        Slider(
+                            value = homeSwipeThresholdDp,
+                            onValueChange = onHomeSwipeThresholdChanged,
+                            valueRange = 48f..160f,
+                            steps = 6
                         )
                         SettingAction(
                             title = if (deviceAdminActive) "DEVICE ADMIN APPROVAL: GRANTED" else "REQUEST DEVICE ADMIN APPROVAL",

@@ -20,6 +20,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 fun Modifier.homeScreenGestureDetector(
     enabled: Boolean,
     doubleTapEnabled: Boolean,
+    swipeThresholdDp: Float,
     onDoubleTap: () -> Unit,
     onLongPress: () -> Unit,
     onSwipeUp: () -> Unit,
@@ -30,13 +31,13 @@ fun Modifier.homeScreenGestureDetector(
     val currentOnSwipeUp by rememberUpdatedState(onSwipeUp)
     val currentOnSwipeDown by rememberUpdatedState(onSwipeDown)
 
-    return pointerInput(enabled, doubleTapEnabled) {
+    return pointerInput(enabled, doubleTapEnabled, swipeThresholdDp) {
         if (!enabled) return@pointerInput
 
         var lastTapTime = 0L
         var lastTapX = 0f
         var lastTapY = 0f
-        val swipeDistance = 96.dp.toPx()
+        val swipeDistance = swipeThresholdDp.dp.toPx()
         val doubleTapDistance = viewConfiguration.touchSlop * 2f
 
         awaitEachGesture {
