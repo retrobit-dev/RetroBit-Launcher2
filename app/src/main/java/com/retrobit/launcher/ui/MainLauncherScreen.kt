@@ -1153,7 +1153,7 @@ fun DeckIconButton(
         contentAlignment = Alignment.Center
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(10.dp),
             horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
