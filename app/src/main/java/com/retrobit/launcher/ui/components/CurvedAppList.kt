@@ -31,6 +31,40 @@ import com.retrobit.launcher.data.AppModel
 import com.retrobit.launcher.ui.theme.LocalRetroBitColors
 import kotlin.math.sin
 
+/** Returns the LazyColumn item index for the first app whose label begins with [targetLetter]. */
+internal fun appDrawerScrollIndex(
+    apps: List<AppModel>,
+    favorites: List<AppModel>,
+    searchQuery: String,
+    selectedCategory: String,
+    targetLetter: String
+): Int? {
+    val appIndex = apps.indexOfFirst { it.displayLabel.startsWith(targetLetter, ignoreCase = true) }
+    if (appIndex < 0) return null
+
+    var itemIndex = 0
+    if (searchQuery.isEmpty() && selectedCategory == "ALL" && favorites.isNotEmpty()) {
+        itemIndex += favorites.size + 1 // Favorites header and rows.
+    }
+    itemIndex++ // Search results or all-apps header.
+
+    if (searchQuery.isNotEmpty() || selectedCategory != "ALL") {
+        return itemIndex + appIndex
+    }
+
+    var lastChar = ""
+    for (index in 0..appIndex) {
+        val firstChar = apps[index].displayLabel.take(1).uppercase()
+        if (firstChar != lastChar) {
+            itemIndex++ // Alphabet section header.
+            lastChar = firstChar
+        }
+        if (index == appIndex) return itemIndex
+        itemIndex++ // App row.
+    }
+    return null
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NiagaraCurvedAppList(

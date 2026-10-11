@@ -815,16 +815,15 @@ fun MainLauncherScreen(
                         if (targetLetter == "★") {
                             scope.launch { listState.scrollToItem(0) }
                         } else {
-                            val index = filteredApps.indexOfFirst {
-                                it.displayLabel.startsWith(targetLetter, ignoreCase = true)
-                            }
-                            if (index >= 0) {
-                                val targetScrollIndex = if (favorites.isNotEmpty() && selectedCategory == "ALL") {
-                                    index + favorites.size + 2
-                                } else index + 1
-                                scope.launch {
-                                    listState.scrollToItem(targetScrollIndex.coerceAtLeast(0))
-                                }
+                            val targetScrollIndex = appDrawerScrollIndex(
+                                apps = filteredApps,
+                                favorites = favorites,
+                                searchQuery = searchQuery,
+                                selectedCategory = selectedCategory,
+                                targetLetter = targetLetter
+                            )
+                            if (targetScrollIndex != null) {
+                                scope.launch { listState.scrollToItem(targetScrollIndex) }
                             }
                         }
                     },
