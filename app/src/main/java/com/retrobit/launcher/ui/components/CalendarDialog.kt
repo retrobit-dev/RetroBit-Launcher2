@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +26,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -39,7 +41,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-internal data class CalendarEvent(val title: String, val begin: Long, val allDay: Boolean)
+internal data class CalendarEvent(val title: String, val begin: Long, val end: Long, val allDay: Boolean)
 internal data class WritableCalendar(val id: Long, val displayName: String)
 
 @Composable
@@ -56,6 +58,7 @@ fun CalendarDialog(onDismiss: () -> Unit) {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CALENDAR) == PackageManager.PERMISSION_GRANTED)
     }
     var events by remember { mutableStateOf<List<CalendarEvent>>(emptyList()) }
+    var monthEvents by remember { mutableStateOf<List<CalendarEvent>>(emptyList()) }
     var eventRevision by remember { mutableIntStateOf(0) }
     var isEventEditorOpen by remember { mutableStateOf(false) }
     var eventTitle by remember { mutableStateOf("") }
@@ -115,6 +118,13 @@ fun CalendarDialog(onDismiss: () -> Unit) {
             queryEvents(context, selectedDay)
         } else emptyList()
     }
+    LaunchedEffect(monthOffset, hasReadCalendarPermission, eventRevision) {
+        monthEvents = if (hasReadCalendarPermission) withContext(Dispatchers.IO) {
+            val monthStart = displayedMonth.timeInMillis
+            val monthEnd = (displayedMonth.clone() as Calendar).apply { add(Calendar.MONTH, 1) }.timeInMillis
+            queryEventsInRange(context, monthStart, monthEnd)
+        } else emptyList()
+    }
 
     LaunchedEffect(hasWriteCalendarPermission) {
         calendars = if (hasWriteCalendarPermission) withContext(Dispatchers.IO) {
@@ -157,19 +167,26 @@ fun CalendarDialog(onDismiss: () -> Unit) {
         isSavingEvent = true
         eventSaveMessage = ""
         val calendarId = selectedCalendarId
+        val agendaDayMillis = selectedDay
+        val notes = eventNotes.trim()
+        val agendaStartHour = startHour
+        val agendaStartMinute = startMinute
+        val agendaEndHour = endHour
+        val agendaEndMinute = endMinute
+        val isAllDay = eventIsAllDay
         scope.launch {
             val created = withContext(Dispatchers.IO) {
                 insertCalendarEvent(
                     context = context,
                     calendarId = calendarId,
                     title = title,
-                    notes = eventNotes.trim(),
-                    selectedDayMillis = selectedDay,
-                    startHour = startHour,
-                    startMinute = startMinute,
-                    endHour = endHour,
-                    endMinute = endMinute,
-                    allDay = eventIsAllDay
+                    notes = notes,
+                    selectedDayMillis = agendaDayMillis,
+                    startHour = agendaStartHour,
+                    startMinute = agendaStartMinute,
+                    endHour = agendaEndHour,
+                    endMinute = agendaEndMinute,
+                    allDay = isAllDay
                 )
             }
             isSavingEvent = false
@@ -189,7 +206,7 @@ fun CalendarDialog(onDismiss: () -> Unit) {
                 .background(colors.background).border(2.dp, colors.border).padding(14.dp)
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("CALENDAR // DAY + MONTH", color = colors.inkPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("CALENDAR // MONTH + AGENDA", color = colors.inkPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Text("[X]", color = colors.inkPrimary, modifier = Modifier.clickable(onClick = onDismiss).padding(4.dp))
             }
             Spacer(Modifier.height(8.dp))
@@ -198,64 +215,32 @@ fun CalendarDialog(onDismiss: () -> Unit) {
                     val target = (displayedMonth.clone() as Calendar).apply { add(Calendar.MONTH, -1) }
                     monthOffset--
                     selectedDay = target.timeInMillis
+                    isEventEditorOpen = false
+                    eventSaveMessage = ""
                 }.padding(8.dp))
                 Text(monthLabel, color = colors.inkPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Text("▶", color = colors.inkPrimary, modifier = Modifier.clickable {
                     val target = (displayedMonth.clone() as Calendar).apply { add(Calendar.MONTH, 1) }
                     monthOffset++
                     selectedDay = target.timeInMillis
+                    isEventEditorOpen = false
+                    eventSaveMessage = ""
                 }.padding(8.dp))
             }
 
-            val weekdays = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
-            Row(Modifier.fillMaxWidth()) {
-                weekdays.forEach { day ->
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text(day, color = colors.inkSecondary, fontSize = 7.sp, fontWeight = FontWeight.Bold)
-                    }
+            CalendarMonthGrid(
+                displayedMonth = displayedMonth,
+                selectedDayMillis = selectedDay,
+                events = monthEvents,
+                dayCellHeight = 32.dp,
+                onDateSelected = { dayMillis ->
+                    selectedDay = dayMillis
+                    isEventEditorOpen = false
+                    eventSaveMessage = ""
+                    permissionMessage = ""
                 }
-            }
-            Spacer(Modifier.height(4.dp))
-            // Calendar.DAY_OF_WEEK uses Sunday=1; shift so Monday is column zero.
-            val mondayFirstOffset = (displayedMonth.get(Calendar.DAY_OF_WEEK) - Calendar.MONDAY + 7) % 7
-            val daysInMonth = displayedMonth.getActualMaximum(Calendar.DAY_OF_MONTH)
-            val today = Calendar.getInstance()
-            val selectedCalendar = Calendar.getInstance().apply { timeInMillis = selectedDay }
-            repeat(6) { week ->
-                Row(Modifier.fillMaxWidth()) {
-                    repeat(7) { weekday ->
-                        val day = week * 7 + weekday - mondayFirstOffset + 1
-                        val valid = day in 1..daysInMonth
-                        val isSelected = valid && selectedCalendar.get(Calendar.YEAR) == displayedMonth.get(Calendar.YEAR) &&
-                            selectedCalendar.get(Calendar.MONTH) == displayedMonth.get(Calendar.MONTH) && selectedCalendar.get(Calendar.DAY_OF_MONTH) == day
-                        val isToday = valid && today.get(Calendar.YEAR) == displayedMonth.get(Calendar.YEAR) &&
-                            today.get(Calendar.MONTH) == displayedMonth.get(Calendar.MONTH) && today.get(Calendar.DAY_OF_MONTH) == day
-                        Box(
-                            Modifier.weight(1f).padding(2.dp)
-                                .background(if (isSelected) colors.inkPrimary else colors.surface)
-                                .border(if (isToday) 1.dp else 0.5.dp, if (isSelected) colors.inkPrimary else colors.border)
-                                .clickable(enabled = valid) {
-                                    selectedDay = (displayedMonth.clone() as Calendar).apply {
-                                        set(Calendar.DAY_OF_MONTH, day)
-                                        set(Calendar.HOUR_OF_DAY, 12)
-                                        set(Calendar.MINUTE, 0)
-                                        set(Calendar.SECOND, 0)
-                                        set(Calendar.MILLISECOND, 0)
-                                    }.timeInMillis
-                                }
-                                .height(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (valid) Text(
-                                "$day",
-                                color = if (isSelected) colors.background else colors.inkPrimary,
-                                fontSize = 9.sp,
-                                fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    }
-                }
-            }
+            )
+            Text("TAP A DATE TO VIEW ITS AGENDA · • = DAYS WITH EVENTS", color = colors.inkMuted, fontSize = 7.sp)
             Spacer(Modifier.height(7.dp))
             val selectedLabel = SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault()).format(Date(selectedDay))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -322,7 +307,7 @@ fun CalendarDialog(onDismiss: () -> Unit) {
                     if (hasReadCalendarPermission && events.isEmpty()) {
                         Text("No events for this day.", color = colors.inkMuted, fontSize = 9.sp)
                     } else if (hasReadCalendarPermission) {
-                        events.take(12).forEach { event ->
+                        events.forEach { event ->
                             val time = if (event.allDay) "ALL DAY" else SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(event.begin))
                             Text("$time  ${event.title}", color = colors.inkSecondary, fontSize = 9.sp, modifier = Modifier.padding(vertical = 3.dp))
                         }
@@ -331,6 +316,90 @@ fun CalendarDialog(onDismiss: () -> Unit) {
             }
         }
     }
+}
+
+@Composable
+internal fun CalendarMonthGrid(
+    displayedMonth: Calendar,
+    selectedDayMillis: Long,
+    events: List<CalendarEvent>,
+    dayCellHeight: Dp,
+    onDateSelected: (Long) -> Unit
+) {
+    val colors = LocalRetroBitColors.current
+    val year = displayedMonth.get(Calendar.YEAR)
+    val month = displayedMonth.get(Calendar.MONTH)
+    val selectedCalendar = Calendar.getInstance().apply { timeInMillis = selectedDayMillis }
+    val today = Calendar.getInstance()
+    val mondayFirstOffset = (displayedMonth.get(Calendar.DAY_OF_WEEK) - Calendar.MONDAY + 7) % 7
+    val daysInMonth = displayedMonth.getActualMaximum(Calendar.DAY_OF_MONTH)
+
+    Row(Modifier.fillMaxWidth()) {
+        listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN").forEach { weekday ->
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                Text(weekday, color = colors.inkSecondary, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+    Spacer(Modifier.height(4.dp))
+    repeat(6) { week ->
+        Row(Modifier.fillMaxWidth()) {
+            repeat(7) { weekday ->
+                val day = week * 7 + weekday - mondayFirstOffset + 1
+                val valid = day in 1..daysInMonth
+                val isSelected = valid && selectedCalendar.get(Calendar.YEAR) == year &&
+                    selectedCalendar.get(Calendar.MONTH) == month && selectedCalendar.get(Calendar.DAY_OF_MONTH) == day
+                val isToday = valid && today.get(Calendar.YEAR) == year &&
+                    today.get(Calendar.MONTH) == month && today.get(Calendar.DAY_OF_MONTH) == day
+                val hasEvents = valid && events.any { it.overlapsDate(year, month, day) }
+                Box(
+                    Modifier.weight(1f).padding(2.dp).height(dayCellHeight)
+                        .background(if (isSelected) colors.inkPrimary else colors.surface)
+                        .border(if (isToday) 1.dp else 0.5.dp, if (isSelected) colors.inkPrimary else colors.border)
+                        .clickable(enabled = valid) {
+                            onDateSelected(
+                                (displayedMonth.clone() as Calendar).apply {
+                                    set(Calendar.DAY_OF_MONTH, day)
+                                    set(Calendar.HOUR_OF_DAY, 12)
+                                    set(Calendar.MINUTE, 0)
+                                    set(Calendar.SECOND, 0)
+                                    set(Calendar.MILLISECOND, 0)
+                                }.timeInMillis
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (valid) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            Text(
+                                "$day",
+                                color = if (isSelected) colors.background else colors.inkPrimary,
+                                fontSize = 9.sp,
+                                fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                            if (hasEvents) {
+                                Box(Modifier.padding(top = 1.dp).size(3.dp).background(if (isSelected) colors.background else colors.inkPrimary, CircleShape))
+                            } else {
+                                Spacer(Modifier.size(3.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun CalendarEvent.overlapsDate(year: Int, month: Int, day: Int): Boolean {
+    if (end <= begin) return false
+    val zone = if (allDay) TimeZone.getTimeZone("UTC") else TimeZone.getDefault()
+    val dayStart = Calendar.getInstance(zone).apply {
+        clear()
+        set(year, month, day, 0, 0, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val dayEnd = (dayStart.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, 1) }
+    return begin < dayEnd.timeInMillis && end > dayStart.timeInMillis
 }
 
 @Composable
@@ -433,34 +502,46 @@ private fun formatTime(hour: Int, minute: Int): String =
     String.format(Locale.getDefault(), "%02d:%02d", hour, minute)
 
 internal fun queryEvents(context: Context, selectedDayMillis: Long): List<CalendarEvent> {
+    val dayStart = Calendar.getInstance().apply {
+        timeInMillis = selectedDayMillis
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val startMillis = dayStart.timeInMillis
+    val endMillis = (dayStart.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, 1) }.timeInMillis
+    return queryEventsInRange(context, startMillis, endMillis)
+}
+
+internal fun queryEventsInRange(context: Context, startMillis: Long, endMillis: Long): List<CalendarEvent> {
+    if (endMillis <= startMillis) return emptyList()
     return try {
-        val start = Calendar.getInstance().apply {
-            timeInMillis = selectedDayMillis
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-        val end = Calendar.getInstance().apply {
-            timeInMillis = start
-            add(Calendar.DAY_OF_MONTH, 1)
-        }.timeInMillis
         val builder = CalendarContract.Instances.CONTENT_URI.buildUpon()
-        ContentUris.appendId(builder, start)
-        ContentUris.appendId(builder, end)
+        ContentUris.appendId(builder, startMillis)
+        ContentUris.appendId(builder, endMillis)
         val projection = arrayOf(
             CalendarContract.Instances.TITLE,
             CalendarContract.Instances.BEGIN,
+            CalendarContract.Instances.END,
             CalendarContract.Instances.ALL_DAY
         )
         context.contentResolver.query(builder.build(), projection, null, null, "${CalendarContract.Instances.BEGIN} ASC")?.use { cursor ->
             buildList {
                 val titleColumn = cursor.getColumnIndexOrThrow(CalendarContract.Instances.TITLE)
                 val beginColumn = cursor.getColumnIndexOrThrow(CalendarContract.Instances.BEGIN)
+                val endColumn = cursor.getColumnIndexOrThrow(CalendarContract.Instances.END)
                 val allDayColumn = cursor.getColumnIndexOrThrow(CalendarContract.Instances.ALL_DAY)
                 while (cursor.moveToNext()) {
                     val title = cursor.getString(titleColumn).orEmpty().ifBlank { "(Untitled event)" }
-                    add(CalendarEvent(title, cursor.getLong(beginColumn), cursor.getInt(allDayColumn) != 0))
+                    add(
+                        CalendarEvent(
+                            title = title,
+                            begin = cursor.getLong(beginColumn),
+                            end = cursor.getLong(endColumn),
+                            allDay = cursor.getInt(allDayColumn) != 0
+                        )
+                    )
                 }
             }
         }.orEmpty()
