@@ -5,10 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
@@ -19,7 +19,7 @@ import com.retrobit.launcher.ui.theme.PaletteCodec
 import com.retrobit.launcher.ui.theme.RetroBitLauncherTheme
 import com.retrobit.launcher.ui.theme.RetroBitThemeMode
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private lateinit var appRepository: AppRepository
     private var packageReceiver: BroadcastReceiver? = null
