@@ -836,7 +836,7 @@ fun MainLauncherScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(40.dp)
+                    .height(44.dp)
                     .background(colors.surface)
                     .border(0.5.dp, colors.border)
                     .padding(horizontal = 10.dp, vertical = 4.dp),
@@ -846,7 +846,7 @@ fun MainLauncherScreen(
                     icon = Icons.Filled.Refresh,
                     label = "REFRESH",
                     contentDescription = "Refresh launcher",
-                    modifier = Modifier.height(32.dp),
+                    modifier = Modifier.height(36.dp),
                     onClick = { triggerRefreshCycle() }
                 )
                 Spacer(Modifier.width(6.dp))
@@ -854,7 +854,7 @@ fun MainLauncherScreen(
                     icon = Icons.Filled.Code,
                     label = "TERM",
                     contentDescription = "Open terminal",
-                    modifier = Modifier.height(32.dp),
+                    modifier = Modifier.height(36.dp),
                     onClick = { isTerminalOpen = true }
                 )
                 Spacer(Modifier.weight(1f))
@@ -862,7 +862,7 @@ fun MainLauncherScreen(
                     icon = if (isAutoHideEnabled) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
                     label = "APPS",
                     contentDescription = if (isAutoHideEnabled) "Disable stealth app list" else "Enable stealth app list",
-                    modifier = Modifier.height(32.dp)
+                    modifier = Modifier.height(36.dp)
                 ) {
                     isAutoHideEnabled = !isAutoHideEnabled
                     featureStore.appDrawerAutoHideEnabled = isAutoHideEnabled
@@ -874,7 +874,7 @@ fun MainLauncherScreen(
                     icon = Icons.Filled.Settings,
                     label = "SETTINGS",
                     contentDescription = "Open settings",
-                    modifier = Modifier.height(32.dp),
+                    modifier = Modifier.height(36.dp),
                     onClick = { isSettingsOpen = true }
                 )
             }
@@ -1153,7 +1153,7 @@ fun DeckIconButton(
         contentAlignment = Alignment.Center
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 3.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
