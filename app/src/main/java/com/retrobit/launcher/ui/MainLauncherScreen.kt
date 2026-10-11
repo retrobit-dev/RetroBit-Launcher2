@@ -695,6 +695,7 @@ fun MainLauncherScreen(
                         onToggleEdit = { isHomeEditing = !isHomeEditing },
                         onLaunchApp = { launchAppWithPolicies(it) },
                         onChangeIcon = { selectedAppForIcon = it },
+                        onUninstallApp = { repository.uninstallApp(it.packageName) },
                         onAddApp = { isHomeShortcutPickerOpen = true },
                         onAddWidget = { launchWidgetPicker() },
                         onRemoveShortcut = { packageName ->
