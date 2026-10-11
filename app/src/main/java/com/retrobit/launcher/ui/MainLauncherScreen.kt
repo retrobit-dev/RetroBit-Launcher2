@@ -87,6 +87,7 @@ fun MainLauncherScreen(
     var keepDrawerOpen by remember { mutableStateOf(false) }
     var isHomeEditing by remember { mutableStateOf(false) }
     var isHomeShortcutPickerOpen by remember { mutableStateOf(false) }
+    var isHomeWidgetSettingsOpen by remember { mutableStateOf(false) }
     var homeShortcutPackages by remember { mutableStateOf(featureStore.getHomeShortcutPackages()) }
     var homeWidgetIds by remember { mutableStateOf(featureStore.getHomeWidgetIds()) }
     var homeWidgetSizes by remember { mutableStateOf(featureStore.getHomeWidgetSizes()) }
@@ -635,11 +636,8 @@ fun MainLauncherScreen(
                             homeShortcutPackages = featureStore.getHomeShortcutPackages()
                         },
                         onMoveShortcut = ::moveHomeShortcut,
-                        onRemoveWidget = ::removeHomeWidget,
-                        onMoveWidget = ::moveHomeWidget,
-                        onWidgetSizeChange = ::resizeHomeWidget,
+                        onOpenWidgetSettings = { isHomeWidgetSettingsOpen = true },
                         onShortcutLayoutChange = ::setHomeShortcutLayout,
-                        onWidgetLayoutChange = ::setHomeWidgetLayout,
                         modifier = Modifier
                     )
                     RightEdgeAppDrawerHandle(
@@ -875,6 +873,21 @@ fun MainLauncherScreen(
                     Toast.makeText(context, "Using the global or system icon again.", Toast.LENGTH_SHORT).show()
                 },
                 onDismiss = { selectedAppForIcon = null }
+            )
+        }
+
+        if (isHomeWidgetSettingsOpen) {
+            HomeWidgetSettingsDialog(
+                widgetIds = homeWidgetIds,
+                widgetSizes = homeWidgetSizes,
+                widgetLayout = homeWidgetLayout,
+                widgetManager = widgetManager,
+                onAddWidget = ::launchWidgetPicker,
+                onLayoutChange = ::setHomeWidgetLayout,
+                onWidgetSizeChange = ::resizeHomeWidget,
+                onMoveWidget = ::moveHomeWidget,
+                onRemoveWidget = ::removeHomeWidget,
+                onDismiss = { isHomeWidgetSettingsOpen = false }
             )
         }
 

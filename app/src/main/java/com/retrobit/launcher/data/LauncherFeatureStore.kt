@@ -35,10 +35,10 @@ class LauncherFeatureStore(context: Context) {
     }
 
     enum class HomeWidgetLayout(val label: String) {
-        HORIZONTAL("HORIZONTAL"),
+        HORIZONTAL("SIDE SCROLL"),
         VERTICAL("VERTICAL"),
-        MANUAL("MANUAL"),
-        STACK("STACK")
+        MANUAL("MANUAL ORDER"),
+        STACK("STACK + SWIPE")
     }
 
     data class HomeWidgetSize(val widthPercent: Int = 100, val heightDp: Int = 220)
