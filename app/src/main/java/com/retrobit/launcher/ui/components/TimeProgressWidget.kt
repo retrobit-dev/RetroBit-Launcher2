@@ -3,9 +3,12 @@ package com.retrobit.launcher.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
@@ -95,9 +98,9 @@ fun TimeProgressWidget(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         Text("TIME PASSED // LOCAL", color = colors.inkSecondary, fontSize = 7.sp, fontWeight = FontWeight.ExtraBold)
-        TimeProgressRow("DAY", daily, colors.inkPrimary, colors.inkMuted)
-        TimeProgressRow("MONTH", monthly, colors.inkPrimary, colors.inkMuted)
-        TimeProgressRow("YEAR", yearly, colors.inkPrimary, colors.inkMuted)
+        TimeProgressRow("DAY", daily, colors.inkPrimary, colors.inkMuted, colors.subtle, colors.border)
+        TimeProgressRow("MONTH", monthly, colors.inkPrimary, colors.inkMuted, colors.subtle, colors.border)
+        TimeProgressRow("YEAR", yearly, colors.inkPrimary, colors.inkMuted, colors.subtle, colors.border)
     }
 }
 
@@ -106,36 +109,38 @@ private fun TimeProgressRow(
     title: String,
     progress: PeriodProgress,
     ink: androidx.compose.ui.graphics.Color,
-    muted: androidx.compose.ui.graphics.Color
+    muted: androidx.compose.ui.graphics.Color,
+    track: androidx.compose.ui.graphics.Color,
+    border: androidx.compose.ui.graphics.Color
 ) {
     val percent = (progress.fraction * 100f).roundToInt().coerceIn(0, 100)
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, color = ink, fontSize = 7.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.width(42.dp))
-        Text(
-            progress.detail,
-            color = muted,
-            fontSize = 7.sp,
-            modifier = Modifier.weight(1f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            "${batteryStyleProgressBar(percent)} $percent%",
-            color = ink,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1
-        )
-    }
-}
-
-private fun batteryStyleProgressBar(percent: Int): String {
-    val filledBars = (percent.coerceIn(0, 100) / 10).coerceIn(0, 10)
-    return buildString {
-        append("[")
-        repeat(filledBars) { append("█") }
-        repeat(10 - filledBars) { append("░") }
-        append("]")
+    val filledSegments = (percent / 10).coerceIn(0, 10)
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, color = ink, fontSize = 7.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.width(42.dp))
+            Text(
+                progress.detail,
+                color = muted,
+                fontSize = 7.sp,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text("$percent%", color = ink, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().height(4.dp).background(track).border(0.5.dp, border),
+            horizontalArrangement = Arrangement.spacedBy(1.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            repeat(10) { index ->
+                Box(
+                    Modifier.weight(1f)
+                        .fillMaxHeight()
+                        .background(if (index < filledSegments) ink else track)
+                )
+            }
+        }
     }
 }
 
