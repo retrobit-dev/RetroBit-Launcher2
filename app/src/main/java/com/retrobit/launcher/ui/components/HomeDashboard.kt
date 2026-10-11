@@ -708,15 +708,31 @@ private fun Modifier.homeCardDragTarget(
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                 var current = down
                 var longPressReached = false
+                var editMenuShown = false
                 var movedBeforeLongPress = false
                 var dragging = false
                 var cancelled = false
+                val longPressDeadline = down.uptimeMillis + viewConfiguration.longPressTimeoutMillis
+                val editMenuDeadline = longPressDeadline + 250L
 
                 while (current.pressed) {
-                    val elapsed = current.uptimeMillis - down.uptimeMillis
-                    val remainingLongPress = viewConfiguration.longPressTimeoutMillis - elapsed
-                    val event = if (!longPressReached && !movedBeforeLongPress && remainingLongPress > 0L) {
-                        withTimeoutOrNull(remainingLongPress) {
+                    if (
+                        longPressReached && !editMenuShown && !movedBeforeLongPress && !dragging &&
+                        current.uptimeMillis >= editMenuDeadline
+                    ) {
+                        editMenuShown = true
+                        latestOnLongPress()
+                    }
+                    val nextDeadline = when {
+                        !longPressReached && !movedBeforeLongPress -> longPressDeadline
+                        longPressReached && !editMenuShown && !movedBeforeLongPress && !dragging -> editMenuDeadline
+                        else -> null
+                    }
+                    val clockAtLeast = if (longPressReached) longPressDeadline else down.uptimeMillis
+                    val currentClock = maxOf(current.uptimeMillis, clockAtLeast)
+                    val remaining = nextDeadline?.minus(currentClock)
+                    val event = if (remaining != null && remaining > 0L) {
+                        withTimeoutOrNull(remaining) {
                             awaitPointerEvent(PointerEventPass.Initial)
                         }
                     } else {
@@ -724,7 +740,12 @@ private fun Modifier.homeCardDragTarget(
                     }
 
                     if (event == null) {
-                        longPressReached = true
+                        if (!longPressReached) {
+                            longPressReached = true
+                        } else if (!editMenuShown && !movedBeforeLongPress && !dragging) {
+                            editMenuShown = true
+                            latestOnLongPress()
+                        }
                         continue
                     }
                     if (event.changes.count { it.pressed } > 1) {
@@ -760,7 +781,7 @@ private fun Modifier.homeCardDragTarget(
                     controller.finish(shortcutLayout, widgetLayout)?.let(latestOnDrop)
                 } else if (cancelled) {
                     controller.cancel()
-                } else if (longPressReached && !movedBeforeLongPress) {
+                } else if (longPressReached && !movedBeforeLongPress && !editMenuShown) {
                     latestOnLongPress()
                 }
             }
