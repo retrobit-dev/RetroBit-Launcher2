@@ -38,6 +38,18 @@ jobs:
           set -o pipefail
           ./gradlew assembleDebug --stacktrace 2>&1 | tee build-output.log
 
+      - name: Surface build diagnostics
+        if: failure()
+        run: |
+          if [ -f build-output.log ]; then
+            {
+              grep -E '(^e: |^w: |^FAILURE:|What went wrong:|Execution failed for task|Task .*FAILED)' build-output.log || true
+              tail -n 15 build-output.log
+            } | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+          fi
+
       - name: Upload build log (always)
         if: always()
         uses: actions/upload-artifact@v7
