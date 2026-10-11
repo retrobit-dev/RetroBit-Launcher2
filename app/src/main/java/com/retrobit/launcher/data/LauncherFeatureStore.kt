@@ -34,6 +34,15 @@ class LauncherFeatureStore(context: Context) {
         fun next(): HomeContentLayout = entries[(ordinal + 1) % entries.size]
     }
 
+    enum class HomeWidgetLayout(val label: String) {
+        HORIZONTAL("HORIZONTAL"),
+        VERTICAL("VERTICAL"),
+        MANUAL("MANUAL"),
+        STACK("STACK")
+    }
+
+    data class HomeWidgetSize(val widthPercent: Int = 100, val heightDp: Int = 220)
+
     var weatherCity: String
         get() = prefs.getString(KEY_WEATHER_CITY, "Semarang") ?: "Semarang"
         set(value) { prefs.edit().putString(KEY_WEATHER_CITY, value.trim()).apply() }
@@ -94,8 +103,10 @@ class LauncherFeatureStore(context: Context) {
         get() = contentLayout(KEY_HOME_SHORTCUT_LAYOUT, HomeContentLayout.MANUAL)
         set(value) { prefs.edit().putString(KEY_HOME_SHORTCUT_LAYOUT, value.name).apply() }
 
-    var homeWidgetLayout: HomeContentLayout
-        get() = contentLayout(KEY_HOME_WIDGET_LAYOUT, HomeContentLayout.VERTICAL)
+    var homeWidgetLayout: HomeWidgetLayout
+        get() = prefs.getString(KEY_HOME_WIDGET_LAYOUT, null)?.let { value ->
+            runCatching { HomeWidgetLayout.valueOf(value) }.getOrNull()
+        } ?: HomeWidgetLayout.VERTICAL
         set(value) { prefs.edit().putString(KEY_HOME_WIDGET_LAYOUT, value.name).apply() }
 
     private fun gestureAction(key: String, default: HomeGestureAction): HomeGestureAction =
@@ -158,7 +169,48 @@ class LauncherFeatureStore(context: Context) {
     }
 
     fun removeHomeWidgetId(widgetId: Int) {
-        prefs.edit().putString(KEY_HOME_WIDGETS, JSONArray(getHomeWidgetIds().filterNot { it == widgetId }).toString()).apply()
+        val widgetSizes = runCatching {
+            JSONObject(prefs.getString(KEY_HOME_WIDGET_SIZES, "{}") ?: "{}")
+        }.getOrElse { JSONObject() }
+        widgetSizes.remove(widgetId.toString())
+        prefs.edit()
+            .putString(KEY_HOME_WIDGETS, JSONArray(getHomeWidgetIds().filterNot { it == widgetId }).toString())
+            .putString(KEY_HOME_WIDGET_SIZES, widgetSizes.toString())
+            .apply()
+    }
+
+    fun getHomeWidgetSizes(): Map<Int, HomeWidgetSize> = try {
+        val json = JSONObject(prefs.getString(KEY_HOME_WIDGET_SIZES, "{}") ?: "{}")
+        buildMap {
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val id = keys.next().toIntOrNull()?.takeIf { it >= 0 } ?: continue
+                val size = json.optJSONObject(id.toString()) ?: continue
+                put(
+                    id,
+                    HomeWidgetSize(
+                        widthPercent = size.optInt("widthPercent", 100).coerceIn(50, 100),
+                        heightDp = size.optInt("heightDp", 220).coerceIn(120, 600)
+                    )
+                )
+            }
+        }
+    } catch (_: Exception) {
+        emptyMap()
+    }
+
+    fun setHomeWidgetSize(widgetId: Int, size: HomeWidgetSize) {
+        if (widgetId < 0) return
+        val json = runCatching {
+            JSONObject(prefs.getString(KEY_HOME_WIDGET_SIZES, "{}") ?: "{}")
+        }.getOrElse { JSONObject() }
+        json.put(
+            widgetId.toString(),
+            JSONObject()
+                .put("widthPercent", size.widthPercent.coerceIn(50, 100))
+                .put("heightDp", size.heightDp.coerceIn(120, 600))
+        )
+        prefs.edit().putString(KEY_HOME_WIDGET_SIZES, json.toString()).apply()
     }
 
     fun moveHomeWidget(widgetId: Int, offset: Int) {
@@ -360,6 +412,7 @@ class LauncherFeatureStore(context: Context) {
         private const val KEY_HOME_SWIPE_DOWN = "gesture_home_swipe_down_action"
         private const val KEY_HOME_SHORTCUTS = "home_shortcut_packages"
         private const val KEY_HOME_WIDGETS = "home_widget_ids"
+        private const val KEY_HOME_WIDGET_SIZES = "home_widget_sizes"
         private const val KEY_HOME_SHORTCUT_LAYOUT = "home_shortcut_layout"
         private const val KEY_HOME_WIDGET_LAYOUT = "home_widget_layout"
         private const val KEY_LOCKSCREEN_PIN_HASH = "feature_lockscreen_pin_hash"

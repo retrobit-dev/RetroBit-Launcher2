@@ -4,11 +4,16 @@ package com.retrobit.launcher.ui.components
 
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProviderInfo
+import android.os.Build
+import android.os.Bundle
+import android.util.SizeF
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -18,16 +23,20 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
@@ -40,17 +49,21 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.retrobit.launcher.data.AppModel
 import com.retrobit.launcher.data.LauncherFeatureStore.HomeContentLayout
+import com.retrobit.launcher.data.LauncherFeatureStore.HomeWidgetLayout
+import com.retrobit.launcher.data.LauncherFeatureStore.HomeWidgetSize
 import com.retrobit.launcher.ui.theme.LocalRetroBitColors
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeDashboard(
     apps: List<AppModel>,
     homeShortcutPackages: List<String>,
     widgetIds: List<Int>,
+    widgetSizes: Map<Int, HomeWidgetSize>,
     widgetHost: AppWidgetHost,
     iconSizeDp: Float,
     shortcutLayout: HomeContentLayout,
-    widgetLayout: HomeContentLayout,
+    widgetLayout: HomeWidgetLayout,
     isEditing: Boolean,
     onToggleEdit: () -> Unit,
     onLaunchApp: (AppModel) -> Unit,
@@ -61,13 +74,15 @@ fun HomeDashboard(
     onMoveShortcut: (String, Int) -> Unit,
     onRemoveWidget: (Int) -> Unit,
     onMoveWidget: (Int, Int) -> Unit,
+    onWidgetSizeChange: (Int, HomeWidgetSize) -> Unit,
     onShortcutLayoutChange: (HomeContentLayout) -> Unit,
-    onWidgetLayoutChange: (HomeContentLayout) -> Unit,
+    onWidgetLayoutChange: (HomeWidgetLayout) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalRetroBitColors.current
     val context = LocalContext.current
     val manager = remember(context) { AppWidgetManager.getInstance(context) }
+    val stackScope = rememberCoroutineScope()
     val appByPackage = remember(apps) { apps.associateBy { it.packageName } }
     val shortcuts = remember(apps, homeShortcutPackages) {
         homeShortcutPackages.mapNotNull { appByPackage[it] }
@@ -77,7 +92,6 @@ fun HomeDashboard(
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(7.dp),
-        // Match the 14dp horizontal chassis inset used by the telemetry and weather cards.
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 8.dp)
     ) {
         item(key = "home-title") {
@@ -85,7 +99,7 @@ fun HomeDashboard(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("HOME // PERSONAL DECK", color = colors.inkPrimary, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
-                        Text("Apps, widgets, and quick gestures in one scrollable workspace.", color = colors.inkSecondary, fontSize = 8.sp)
+                        Text("Widgets first, with a scrollable app deck below.", color = colors.inkSecondary, fontSize = 8.sp)
                     }
                     Text(
                         if (isEditing) "[DONE]" else "[EDIT]",
@@ -103,9 +117,145 @@ fun HomeDashboard(
                 if (isEditing) {
                     Spacer(Modifier.height(6.dp))
                     Text("LAYOUT // choose each section's direction", color = colors.inkMuted, fontSize = 7.sp, fontWeight = FontWeight.Bold)
-                    HomeLayoutSelector("APP ICONS", shortcutLayout, onShortcutLayoutChange)
-                    HomeLayoutSelector("WIDGETS", widgetLayout, onWidgetLayoutChange)
-                    Text("MANUAL: ↑ ↓ arrange; × removes. Hold an app icon to customize it.", color = colors.inkMuted, fontSize = 7.sp)
+                    HomeLayoutSelector(
+                        title = "APP ICONS",
+                        selected = shortcutLayout.label,
+                        options = HomeContentLayout.entries.map { it.label },
+                        onSelect = { label -> HomeContentLayout.entries.firstOrNull { it.label == label }?.let(onShortcutLayoutChange) }
+                    )
+                    HomeLayoutSelector(
+                        title = "WIDGETS",
+                        selected = widgetLayout.label,
+                        options = HomeWidgetLayout.entries.map { it.label },
+                        onSelect = { label -> HomeWidgetLayout.entries.firstOrNull { it.label == label }?.let(onWidgetLayoutChange) }
+                    )
+                    Text(
+                        "W- / W+ and H- / H+ resize widgets. STACK lets you swipe between them; MANUAL adds reorder controls.",
+                        color = colors.inkMuted,
+                        fontSize = 7.sp
+                    )
+                    Text("Hold an app icon to customize it; MANUAL app layout uses ↑ ↓ to reorder and × to remove.", color = colors.inkMuted, fontSize = 7.sp)
+                }
+            }
+        }
+
+        item(key = "home-widgets-title") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                HomeSectionLabel("WIDGETS // ${widgetLayout.label}")
+                if (widgetIds.isNotEmpty()) Text("${widgetIds.size} ITEMS", color = colors.inkMuted, fontSize = 7.sp)
+            }
+        }
+
+        if (widgetIds.isEmpty()) {
+            item(key = "home-widgets-empty") {
+                HomeEmptyState("No widgets added. Use + WIDGET to choose Android widgets.")
+            }
+        } else when (widgetLayout) {
+            HomeWidgetLayout.HORIZONTAL -> {
+                item(key = "home-widgets-horizontal") {
+                    BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        val availableWidth = maxWidth
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            itemsIndexed(widgetIds, key = { _, id -> "widget-$id" }) { _, widgetId ->
+                                HomeWidgetFrame(
+                                    widgetId = widgetId,
+                                    savedSize = widgetSizes[widgetId],
+                                    widgetHost = widgetHost,
+                                    manager = manager,
+                                    availableWidth = availableWidth,
+                                    modifier = Modifier,
+                                    fillAvailableWidth = false,
+                                    contentAlignment = Alignment.CenterStart,
+                                    isEditing = isEditing,
+                                    showMoveControls = false,
+                                    onRemove = { onRemoveWidget(widgetId) },
+                                    onMove = { offset -> onMoveWidget(widgetId, offset) },
+                                    onSizeChange = { onWidgetSizeChange(widgetId, it) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            HomeWidgetLayout.VERTICAL, HomeWidgetLayout.MANUAL -> {
+                itemsIndexed(widgetIds, key = { _, id -> "widget-$id" }) { _, widgetId ->
+                    BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        HomeWidgetFrame(
+                            widgetId = widgetId,
+                            savedSize = widgetSizes[widgetId],
+                            widgetHost = widgetHost,
+                            manager = manager,
+                            availableWidth = maxWidth,
+                            modifier = Modifier.fillMaxWidth(),
+                            fillAvailableWidth = true,
+                            contentAlignment = Alignment.CenterStart,
+                            isEditing = isEditing,
+                            showMoveControls = widgetLayout == HomeWidgetLayout.MANUAL,
+                            onRemove = { onRemoveWidget(widgetId) },
+                            onMove = { offset -> onMoveWidget(widgetId, offset) },
+                            onSizeChange = { onWidgetSizeChange(widgetId, it) }
+                        )
+                    }
+                }
+            }
+            HomeWidgetLayout.STACK -> {
+                item(key = "home-widgets-stack") {
+                    val pagerState = rememberPagerState(pageCount = { widgetIds.size })
+                    val activeIndex = pagerState.currentPage.coerceIn(0, widgetIds.lastIndex)
+                    val activeWidgetId = widgetIds[activeIndex]
+                    val activeProvider = remember(activeWidgetId, manager) { manager.getAppWidgetInfo(activeWidgetId) }
+                    val activeSize = widgetSizes[activeWidgetId] ?: defaultHomeWidgetSize(activeProvider)
+                    val activeHeight = activeSize.heightDp.coerceAtLeast(minimumWidgetBodyHeight(activeProvider)).coerceIn(120, 600)
+                    val stackHeight = activeHeight + if (isEditing) 68 else 48
+
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier.fillMaxWidth().height(stackHeight.dp),
+                            key = { page -> widgetIds[page] }
+                        ) { page ->
+                            val widgetId = widgetIds[page]
+                            BoxWithConstraints(Modifier.fillMaxSize()) {
+                                HomeWidgetFrame(
+                                    widgetId = widgetId,
+                                    savedSize = widgetSizes[widgetId],
+                                    widgetHost = widgetHost,
+                                    manager = manager,
+                                    availableWidth = maxWidth,
+                                    modifier = Modifier.fillMaxSize(),
+                                    fillAvailableWidth = true,
+                                    contentAlignment = Alignment.Center,
+                                    isEditing = isEditing,
+                                    showMoveControls = true,
+                                    onRemove = { onRemoveWidget(widgetId) },
+                                    onMove = { offset -> onMoveWidget(widgetId, offset) },
+                                    onSizeChange = { onWidgetSizeChange(widgetId, it) }
+                                )
+                            }
+                        }
+                        if (widgetIds.size > 1) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("SWIPE ← → TO SWITCH WIDGETS", color = colors.inkMuted, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        "◀",
+                                        color = colors.inkPrimary,
+                                        modifier = Modifier.clickable {
+                                            stackScope.launch { pagerState.animateScrollToPage((pagerState.currentPage - 1).coerceAtLeast(0)) }
+                                        }.padding(4.dp)
+                                    )
+                                    Text("${activeIndex + 1}/${widgetIds.size}", color = colors.inkSecondary, fontSize = 8.sp)
+                                    Text(
+                                        "▶",
+                                        color = colors.inkPrimary,
+                                        modifier = Modifier.clickable {
+                                            stackScope.launch { pagerState.animateScrollToPage((pagerState.currentPage + 1).coerceAtMost(widgetIds.lastIndex)) }
+                                        }.padding(4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -178,55 +328,9 @@ fun HomeDashboard(
             }
         }
 
-        item(key = "home-widgets-title") {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                HomeSectionLabel("WIDGET STACK // ${widgetLayout.label}")
-                if (widgetIds.isNotEmpty()) Text("${widgetIds.size} ITEMS", color = colors.inkMuted, fontSize = 7.sp)
-            }
-        }
-
-        if (widgetIds.isEmpty()) {
-            item(key = "home-widgets-empty") {
-                HomeEmptyState("No widgets added. Use + WIDGET to choose Android widgets.")
-            }
-        } else if (widgetLayout == HomeContentLayout.HORIZONTAL) {
-            item(key = "home-widgets-horizontal") {
-                BoxWithConstraints(Modifier.fillMaxWidth()) {
-                    val cardWidth = (maxWidth * 0.88f).coerceAtMost(360.dp)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        itemsIndexed(widgetIds, key = { _, id -> "widget-$id" }) { _, widgetId ->
-                            HomeWidgetCard(
-                                widgetId = widgetId,
-                                widgetHost = widgetHost,
-                                manager = manager,
-                                isEditing = isEditing,
-                                showMoveControls = false,
-                                modifier = Modifier.width(cardWidth),
-                                onRemove = { onRemoveWidget(widgetId) },
-                                onMove = { offset -> onMoveWidget(widgetId, offset) }
-                            )
-                        }
-                    }
-                }
-            }
-        } else {
-            itemsIndexed(widgetIds, key = { _, id -> "widget-$id" }) { _, widgetId ->
-                HomeWidgetCard(
-                    widgetId = widgetId,
-                    widgetHost = widgetHost,
-                    manager = manager,
-                    isEditing = isEditing,
-                    showMoveControls = widgetLayout == HomeContentLayout.MANUAL,
-                    modifier = Modifier.fillMaxWidth(),
-                    onRemove = { onRemoveWidget(widgetId) },
-                    onMove = { offset -> onMoveWidget(widgetId, offset) }
-                )
-            }
-        }
-
         item(key = "home-scroll-hint") {
             Text(
-                "SCROLL THE DECK ↑↓ // long press anywhere for edit; fast swipes run your gesture actions",
+                "SCROLL THE DECK ↑↓ // swipe sideways through STACK widgets; long press anywhere for edit",
                 color = colors.inkMuted,
                 fontSize = 7.sp,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
@@ -238,8 +342,9 @@ fun HomeDashboard(
 @Composable
 private fun HomeLayoutSelector(
     title: String,
-    selected: HomeContentLayout,
-    onSelect: (HomeContentLayout) -> Unit
+    selected: String,
+    options: List<String>,
+    onSelect: (String) -> Unit
 ) {
     val colors = LocalRetroBitColors.current
     Row(
@@ -248,19 +353,19 @@ private fun HomeLayoutSelector(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(title, color = colors.inkSecondary, fontSize = 6.5.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(62.dp))
-        HomeContentLayout.entries.forEach { layout ->
-            val isSelected = selected == layout
+        options.forEach { label ->
+            val isSelected = selected == label
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .background(if (isSelected) colors.inkPrimary else colors.background)
                     .border(1.dp, colors.border)
-                    .clickable { onSelect(layout) }
+                    .clickable { onSelect(label) }
                     .padding(horizontal = 2.dp, vertical = 5.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    layout.label,
+                    label,
                     color = if (isSelected) colors.background else colors.inkSecondary,
                     fontSize = 6.sp,
                     fontWeight = FontWeight.Bold,
@@ -271,6 +376,60 @@ private fun HomeLayoutSelector(
         }
     }
 }
+
+@Composable
+private fun HomeWidgetFrame(
+    widgetId: Int,
+    savedSize: HomeWidgetSize?,
+    widgetHost: AppWidgetHost,
+    manager: AppWidgetManager,
+    availableWidth: androidx.compose.ui.unit.Dp,
+    modifier: Modifier,
+    fillAvailableWidth: Boolean,
+    contentAlignment: Alignment,
+    isEditing: Boolean,
+    showMoveControls: Boolean,
+    onRemove: () -> Unit,
+    onMove: (Int) -> Unit,
+    onSizeChange: (HomeWidgetSize) -> Unit
+) {
+    val providerInfo = remember(widgetId, manager) { manager.getAppWidgetInfo(widgetId) }
+    val minimumHeight = minimumWidgetBodyHeight(providerInfo)
+    val defaultSize = remember(providerInfo) { defaultHomeWidgetSize(providerInfo) }
+    val rawSize = savedSize ?: defaultSize
+    val widgetSize = rawSize.copy(
+        widthPercent = rawSize.widthPercent.coerceIn(50, 100),
+        heightDp = rawSize.heightDp.coerceAtLeast(minimumHeight).coerceIn(120, 600)
+    )
+    val minimumWidth = ((providerInfo?.minWidth ?: 0) + 16).dp
+    val widgetWidth = (availableWidth * (widgetSize.widthPercent / 100f))
+        .coerceAtLeast(minimumWidth)
+        .coerceAtMost(availableWidth)
+    val widgetContentWidthDp = (widgetWidth.value - 16f).toInt().coerceAtLeast(1)
+    val frameModifier = modifier.then(if (fillAvailableWidth) Modifier.fillMaxWidth() else Modifier.width(widgetWidth))
+
+    Box(modifier = frameModifier, contentAlignment = contentAlignment) {
+        HomeWidgetCard(
+            widgetId = widgetId,
+            widgetHost = widgetHost,
+            providerInfo = providerInfo,
+            widgetSize = widgetSize,
+            widgetContentWidthDp = widgetContentWidthDp,
+            isEditing = isEditing,
+            showMoveControls = showMoveControls,
+            modifier = Modifier.width(widgetWidth),
+            onRemove = onRemove,
+            onMove = onMove,
+            onSizeChange = onSizeChange
+        )
+    }
+}
+
+private fun minimumWidgetBodyHeight(providerInfo: AppWidgetProviderInfo?): Int =
+    ((providerInfo?.minHeight ?: 0) + 12).coerceIn(120, 480)
+
+private fun defaultHomeWidgetSize(providerInfo: AppWidgetProviderInfo?): HomeWidgetSize =
+    HomeWidgetSize(widthPercent = 100, heightDp = minimumWidgetBodyHeight(providerInfo))
 
 @Composable
 private fun HomeShortcutTile(
@@ -347,19 +506,43 @@ private fun HomeShortcutTile(
 private fun HomeWidgetCard(
     widgetId: Int,
     widgetHost: AppWidgetHost,
-    manager: AppWidgetManager,
+    providerInfo: AppWidgetProviderInfo?,
+    widgetSize: HomeWidgetSize,
+    widgetContentWidthDp: Int,
     isEditing: Boolean,
     showMoveControls: Boolean,
     modifier: Modifier = Modifier,
     onRemove: () -> Unit,
-    onMove: (Int) -> Unit
+    onMove: (Int) -> Unit,
+    onSizeChange: (HomeWidgetSize) -> Unit
 ) {
     val colors = LocalRetroBitColors.current
     val context = LocalContext.current
-    val providerInfo = remember(widgetId, manager) { manager.getAppWidgetInfo(widgetId) }
     val label = remember(providerInfo) {
         providerInfo?.loadLabel(context.packageManager)?.toString() ?: "UNAVAILABLE WIDGET"
     }
+    val minimumHeight = minimumWidgetBodyHeight(providerInfo)
+    val bodyHeightDp = widgetSize.heightDp.coerceAtLeast(minimumHeight).coerceIn(120, 600)
+    val contentWidthDp = widgetContentWidthDp.coerceAtLeast(1)
+
+    LaunchedEffect(widgetId, contentWidthDp, bodyHeightDp, providerInfo) {
+        if (providerInfo != null) {
+            val options = Bundle().apply {
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, contentWidthDp)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, contentWidthDp)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, bodyHeightDp)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, bodyHeightDp)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    putParcelableArrayList(
+                        AppWidgetManager.OPTION_APPWIDGET_SIZES,
+                        arrayListOf(SizeF(contentWidthDp.toFloat(), bodyHeightDp.toFloat()))
+                    )
+                }
+            }
+            runCatching { widgetHost.updateAppWidgetOptions(widgetId, options) }
+        }
+    }
+
     Column(modifier.background(colors.surface).border(1.dp, colors.border).padding(7.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(label.uppercase(), color = colors.inkSecondary, fontSize = 8.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -373,14 +556,36 @@ private fun HomeWidgetCard(
                 }
             }
         }
+        if (isEditing) {
+            Spacer(Modifier.height(4.dp))
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MiniHomeControl("W-") {
+                    onSizeChange(widgetSize.copy(widthPercent = (widgetSize.widthPercent - 25).coerceAtLeast(50)))
+                }
+                Text("W ${widgetSize.widthPercent}%", color = colors.inkSecondary, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                MiniHomeControl("W+") {
+                    onSizeChange(widgetSize.copy(widthPercent = (widgetSize.widthPercent + 25).coerceAtMost(100)))
+                }
+                MiniHomeControl("H-") {
+                    onSizeChange(widgetSize.copy(heightDp = (bodyHeightDp - 40).coerceAtLeast(minimumHeight)))
+                }
+                Text("H ${bodyHeightDp}dp", color = colors.inkSecondary, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                MiniHomeControl("H+") {
+                    onSizeChange(widgetSize.copy(heightDp = (bodyHeightDp + 40).coerceAtMost(600)))
+                }
+            }
+        }
         Spacer(Modifier.height(4.dp))
         if (providerInfo == null) {
             Text("Widget provider is no longer available. Remove this item in edit mode.", color = colors.inkMuted, fontSize = 8.sp)
         } else {
-            val minHeight = (providerInfo.minHeight + 12).coerceIn(120, 480).dp
             AndroidView(
                 factory = { viewContext -> widgetHost.createView(viewContext, widgetId, providerInfo) },
-                modifier = Modifier.fillMaxWidth().heightIn(min = minHeight, max = 520.dp)
+                modifier = Modifier.fillMaxWidth().height(bodyHeightDp.dp)
             )
         }
     }

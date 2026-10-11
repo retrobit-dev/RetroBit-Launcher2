@@ -37,6 +37,8 @@ import com.retrobit.launcher.data.DeviceLockController
 import com.retrobit.launcher.data.LauncherFeatureStore
 import com.retrobit.launcher.data.LauncherFeatureStore.HomeContentLayout
 import com.retrobit.launcher.data.LauncherFeatureStore.HomeGestureAction
+import com.retrobit.launcher.data.LauncherFeatureStore.HomeWidgetLayout
+import com.retrobit.launcher.data.LauncherFeatureStore.HomeWidgetSize
 import com.retrobit.launcher.data.NotificationMonitorService
 import com.retrobit.launcher.data.UsageStatsRepository
 import com.retrobit.launcher.ui.components.*
@@ -87,6 +89,7 @@ fun MainLauncherScreen(
     var isHomeShortcutPickerOpen by remember { mutableStateOf(false) }
     var homeShortcutPackages by remember { mutableStateOf(featureStore.getHomeShortcutPackages()) }
     var homeWidgetIds by remember { mutableStateOf(featureStore.getHomeWidgetIds()) }
+    var homeWidgetSizes by remember { mutableStateOf(featureStore.getHomeWidgetSizes()) }
     var homeShortcutLayout by remember { mutableStateOf(featureStore.homeShortcutLayout) }
     var homeWidgetLayout by remember { mutableStateOf(featureStore.homeWidgetLayout) }
 
@@ -204,6 +207,7 @@ fun MainLauncherScreen(
         featureStore.removeHomeWidgetId(widgetId)
         runCatching { widgetHost.deleteAppWidgetId(widgetId) }
         homeWidgetIds = featureStore.getHomeWidgetIds()
+        homeWidgetSizes = featureStore.getHomeWidgetSizes()
     }
 
     fun toggleHomeShortcut(packageName: String) {
@@ -221,12 +225,17 @@ fun MainLauncherScreen(
         homeWidgetIds = featureStore.getHomeWidgetIds()
     }
 
+    fun resizeHomeWidget(widgetId: Int, size: HomeWidgetSize) {
+        featureStore.setHomeWidgetSize(widgetId, size)
+        homeWidgetSizes = featureStore.getHomeWidgetSizes()
+    }
+
     fun setHomeShortcutLayout(layout: HomeContentLayout) {
         homeShortcutLayout = layout
         featureStore.homeShortcutLayout = layout
     }
 
-    fun setHomeWidgetLayout(layout: HomeContentLayout) {
+    fun setHomeWidgetLayout(layout: HomeWidgetLayout) {
         homeWidgetLayout = layout
         featureStore.homeWidgetLayout = layout
     }
@@ -610,6 +619,7 @@ fun MainLauncherScreen(
                         apps = allApps,
                         homeShortcutPackages = homeShortcutPackages,
                         widgetIds = homeWidgetIds,
+                        widgetSizes = homeWidgetSizes,
                         widgetHost = widgetHost,
                         iconSizeDp = iconSizeDp,
                         shortcutLayout = homeShortcutLayout,
@@ -627,6 +637,7 @@ fun MainLauncherScreen(
                         onMoveShortcut = ::moveHomeShortcut,
                         onRemoveWidget = ::removeHomeWidget,
                         onMoveWidget = ::moveHomeWidget,
+                        onWidgetSizeChange = ::resizeHomeWidget,
                         onShortcutLayoutChange = ::setHomeShortcutLayout,
                         onWidgetLayoutChange = ::setHomeWidgetLayout,
                         modifier = Modifier
