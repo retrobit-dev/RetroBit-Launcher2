@@ -299,6 +299,16 @@ class LauncherFeatureStore(context: Context) {
         }.distinct()
     }
 
+    fun getLockscreenWidgetModules(): List<WidgetPageModule> {
+        val selected = prefs.getStringSet(KEY_LOCKSCREEN_WIDGET_MODULES, emptySet()).orEmpty()
+        return WidgetPageModule.entries.filter { it.name in selected }
+    }
+
+    fun setLockscreenWidgetModules(modules: Collection<WidgetPageModule>) {
+        val selected = modules.map { it.name }.toSet()
+        prefs.edit().putStringSet(KEY_LOCKSCREEN_WIDGET_MODULES, selected).apply()
+    }
+
     fun setWidgetPageModules(modules: List<WidgetPageModule>) {
         writeStringList(KEY_WIDGET_PAGE_MODULES, modules.distinct().map { it.name })
     }
@@ -503,6 +513,7 @@ class LauncherFeatureStore(context: Context) {
         private const val KEY_HOME_SWIPE_THRESHOLD_DP = "home_swipe_threshold_dp"
         private const val KEY_ICON_PACK = "feature_icon_pack"
         private const val KEY_LOCKSCREEN = "feature_lockscreen"
+        private const val KEY_LOCKSCREEN_WIDGET_MODULES = "feature_lockscreen_widget_modules"
         private const val KEY_DOUBLE_TAP_LOCK = "gesture_double_tap_lock"
         private const val KEY_HOME_SWIPE_UP = "gesture_home_swipe_up_action"
         private const val KEY_HOME_SWIPE_DOWN = "gesture_home_swipe_down_action"

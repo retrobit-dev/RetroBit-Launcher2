@@ -25,7 +25,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 @Composable
-fun RetroMediaPlayerWidget(modifier: Modifier = Modifier) {
+fun RetroMediaPlayerWidget(modifier: Modifier = Modifier, readOnly: Boolean = false) {
     val colors = LocalRetroBitColors.current
     val context = LocalContext.current
     var controller by remember { mutableStateOf<MediaController?>(null) }
@@ -45,11 +45,11 @@ fun RetroMediaPlayerWidget(modifier: Modifier = Modifier) {
         }
     }
 
-    LaunchedEffect(context, hasNotificationAccess) {
+    LaunchedEffect(context, hasNotificationAccess, readOnly) {
         if (!hasNotificationAccess) {
             controller = null
-            title = "MEDIA SESSION LOCKED"
-            artist = "Tap to enable notification access"
+            title = if (readOnly) "MEDIA PREVIEW UNAVAILABLE" else "MEDIA SESSION LOCKED"
+            artist = if (readOnly) "Enable notification access while unlocked to show media." else "Tap to enable notification access"
             isPlaying = false
             return@LaunchedEffect
         }
@@ -87,16 +87,19 @@ fun RetroMediaPlayerWidget(modifier: Modifier = Modifier) {
     val filled = (progress * barLength).roundToInt().coerceIn(0, barLength)
     val progressBar = "[${"█".repeat(filled)}${"░".repeat(barLength - filled)}]"
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
+    val containerModifier = if (readOnly) {
+        modifier.fillMaxWidth()
+    } else {
+        modifier.fillMaxWidth()
             .background(colors.surface)
             .border(1.dp, colors.border)
             .clickable(enabled = !hasNotificationAccess) {
                 NotificationMonitorService.openPermissionSettings(context)
             }
             .padding(horizontal = 10.dp, vertical = 6.dp)
-    ) {
+    }
+
+    Column(modifier = containerModifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -105,7 +108,7 @@ fun RetroMediaPlayerWidget(modifier: Modifier = Modifier) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    fontSize = 9.5.sp,
+                    fontSize = if (readOnly) 13.sp else 9.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = colors.inkPrimary,
                     maxLines = 1,
@@ -113,24 +116,33 @@ fun RetroMediaPlayerWidget(modifier: Modifier = Modifier) {
                 )
                 Text(
                     text = artist,
-                    fontSize = 8.sp,
+                    fontSize = if (readOnly) 11.sp else 8.sp,
                     color = colors.inkSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                MediaControl("|◀", colors.inkPrimary, enabled = controller != null) {
-                    controller?.transportControls?.skipToPrevious()
-                }
-                MediaControl(if (isPlaying) "❚❚" else "▶", colors.inkPrimary, enabled = controller != null) {
-                    controller?.transportControls?.let { controls ->
-                        if (isPlaying) controls.pause() else controls.play()
+            if (readOnly) {
+                Text(
+                    if (isPlaying) "PLAYING" else "PAUSED",
+                    color = colors.inkSecondary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    MediaControl("|◀", colors.inkPrimary, enabled = controller != null) {
+                        controller?.transportControls?.skipToPrevious()
                     }
-                }
-                MediaControl("▶|", colors.inkPrimary, enabled = controller != null) {
-                    controller?.transportControls?.skipToNext()
+                    MediaControl(if (isPlaying) "❚❚" else "▶", colors.inkPrimary, enabled = controller != null) {
+                        controller?.transportControls?.let { controls ->
+                            if (isPlaying) controls.pause() else controls.play()
+                        }
+                    }
+                    MediaControl("▶|", colors.inkPrimary, enabled = controller != null) {
+                        controller?.transportControls?.skipToNext()
+                    }
                 }
             }
         }
@@ -140,9 +152,9 @@ fun RetroMediaPlayerWidget(modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = formatMediaTime(position), fontSize = 8.sp, color = colors.inkSecondary)
-            Text(text = progressBar, fontSize = 8.sp, fontWeight = FontWeight.Bold, color = colors.inkPrimary)
-            Text(text = formatMediaTime(duration), fontSize = 8.sp, color = colors.inkSecondary)
+            Text(text = formatMediaTime(position), fontSize = if (readOnly) 10.sp else 8.sp, color = colors.inkSecondary)
+            Text(text = progressBar, fontSize = if (readOnly) 10.sp else 8.sp, fontWeight = FontWeight.Bold, color = colors.inkPrimary)
+            Text(text = formatMediaTime(duration), fontSize = if (readOnly) 10.sp else 8.sp, color = colors.inkSecondary)
         }
     }
 }

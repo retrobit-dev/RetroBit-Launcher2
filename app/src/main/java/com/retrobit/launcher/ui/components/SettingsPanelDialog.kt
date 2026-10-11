@@ -28,6 +28,7 @@ import com.retrobit.launcher.data.AppRepository
 import com.retrobit.launcher.data.DeviceLockController
 import com.retrobit.launcher.data.IconPackManager
 import com.retrobit.launcher.data.LauncherFeatureStore
+import com.retrobit.launcher.data.LauncherFeatureStore.WidgetPageModule
 import com.retrobit.launcher.data.NotificationMonitorService
 import com.retrobit.launcher.data.UsageStatsRepository
 import com.retrobit.launcher.ui.theme.LocalRetroBitColors
@@ -84,6 +85,9 @@ fun SettingsPanelDialog(
     var usageSummary by remember { mutableStateOf("—") }
     var lockscreenEnabled by remember { mutableStateOf(store.lockscreenEnabled) }
     var pinDraft by remember { mutableStateOf("") }
+    var lockscreenWidgetModules by remember(store) {
+        mutableStateOf(store.getLockscreenWidgetModules().toSet())
+    }
     var doubleTapLockEnabled by remember { mutableStateOf(store.doubleTapToLockEnabled) }
     var swipeUpAction by remember { mutableStateOf(store.homeSwipeUpAction) }
     var swipeDownAction by remember { mutableStateOf(store.homeSwipeDownAction) }
@@ -216,6 +220,26 @@ fun SettingsPanelDialog(
                             } else statusMessage = "PIN must contain 4–8 digits."
                         }
                         SettingAction("PREVIEW CYBERDECK LOCKSCREEN", "Open the in-app lock screen preview.", onPreviewLockscreen)
+                        SectionLabel("LOCKSCREEN WIDGET PAGE")
+                        Text(
+                            "Choose what remains visible on the lockscreen. These previews are read-only; select only information you are comfortable showing while locked.",
+                            color = colors.inkSecondary,
+                            fontSize = 10.sp
+                        )
+                        WidgetPageModule.entries.forEach { module ->
+                            LockScreenWidgetSetting(
+                                module = module,
+                                checked = module in lockscreenWidgetModules,
+                                onCheckedChange = { checked ->
+                                    val updated = lockscreenWidgetModules.toMutableSet().apply {
+                                        if (checked) add(module) else remove(module)
+                                    }
+                                    lockscreenWidgetModules = updated
+                                    store.setLockscreenWidgetModules(updated)
+                                    statusMessage = if (checked) "${module.label} will appear on the lockscreen." else "${module.label} removed from the lockscreen."
+                                }
+                            )
+                        }
                     }
                     1 -> {
                         SectionLabel("DIGITAL WELLBEING")
@@ -475,5 +499,42 @@ private fun ToggleSetting(title: String, detail: String, checked: Boolean, onChe
             Text(detail, color = colors.inkSecondary, fontSize = 8.sp)
         }
         Text(if (checked) "ON" else "OFF", color = colors.inkPrimary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun LockScreenWidgetSetting(
+    module: WidgetPageModule,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val colors = LocalRetroBitColors.current
+    val detail = when (module) {
+        WidgetPageModule.CALENDAR -> "Today's calendar agenda"
+        WidgetPageModule.NOTES -> "Read-only note preview"
+        WidgetPageModule.TODO -> "Open tasks from your local list"
+        WidgetPageModule.WEATHER -> "Current conditions for the saved city"
+        WidgetPageModule.MEDIA -> "Track and playback status"
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 2.dp)
+            .background(colors.surface).border(1.dp, colors.border)
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(module.label, color = colors.inkPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(2.dp))
+            Text(detail, color = colors.inkSecondary, fontSize = 9.sp)
+        }
+        Spacer(Modifier.width(12.dp))
+        Box(
+            Modifier.size(24.dp).background(if (checked) colors.inkPrimary else colors.background)
+                .border(1.dp, colors.border),
+            contentAlignment = Alignment.Center
+        ) {
+            if (checked) Text("✓", color = colors.background, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }
