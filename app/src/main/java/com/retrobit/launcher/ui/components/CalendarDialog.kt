@@ -41,6 +41,25 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
+internal enum class CalendarEntryType(val label: String) {
+    EVENT("EVENT"),
+    BIRTHDAY("BIRTHDAY"),
+    TASK("TASK");
+
+    fun calendarTitle(title: String): String = when (this) {
+        EVENT -> title
+        BIRTHDAY -> "[BIRTHDAY] $title"
+        TASK -> "[TASK] $title"
+    }
+}
+
+internal enum class CalendarRecurrence(val label: String, val rrule: String?) {
+    NEVER("NEVER", null),
+    WEEKLY("WEEKLY", "FREQ=WEEKLY"),
+    MONTHLY("MONTHLY", "FREQ=MONTHLY"),
+    YEARLY("YEARLY", "FREQ=YEARLY")
+}
+
 internal data class CalendarEvent(val title: String, val begin: Long, val end: Long, val allDay: Boolean)
 internal data class WritableCalendar(val id: Long, val displayName: String)
 
@@ -63,6 +82,8 @@ fun CalendarDialog(onDismiss: () -> Unit) {
     var isEventEditorOpen by remember { mutableStateOf(false) }
     var eventTitle by remember { mutableStateOf("") }
     var eventNotes by remember { mutableStateOf("") }
+    var eventType by remember { mutableStateOf(CalendarEntryType.EVENT) }
+    var eventRecurrence by remember { mutableStateOf(CalendarRecurrence.NEVER) }
     var eventIsAllDay by remember { mutableStateOf(false) }
     var startHour by remember { mutableIntStateOf(9) }
     var startMinute by remember { mutableIntStateOf(0) }
@@ -77,6 +98,8 @@ fun CalendarDialog(onDismiss: () -> Unit) {
     fun beginEventDraft() {
         eventTitle = ""
         eventNotes = ""
+        eventType = CalendarEntryType.EVENT
+        eventRecurrence = CalendarRecurrence.NEVER
         eventIsAllDay = false
         startHour = 9
         startMinute = 0
@@ -174,6 +197,8 @@ fun CalendarDialog(onDismiss: () -> Unit) {
         val agendaEndHour = endHour
         val agendaEndMinute = endMinute
         val isAllDay = eventIsAllDay
+        val entryType = eventType
+        val recurrence = eventRecurrence
         scope.launch {
             val created = withContext(Dispatchers.IO) {
                 insertCalendarEvent(
@@ -186,7 +211,9 @@ fun CalendarDialog(onDismiss: () -> Unit) {
                     startMinute = agendaStartMinute,
                     endHour = agendaEndHour,
                     endMinute = agendaEndMinute,
-                    allDay = isAllDay
+                    allDay = isAllDay,
+                    entryType = entryType,
+                    recurrence = recurrence
                 )
             }
             isSavingEvent = false
@@ -259,6 +286,14 @@ fun CalendarDialog(onDismiss: () -> Unit) {
                     onTitleChange = { eventTitle = it },
                     notes = eventNotes,
                     onNotesChange = { eventNotes = it },
+                    entryType = eventType,
+                    onEntryTypeChange = { type ->
+                        eventType = type
+                        eventIsAllDay = type != CalendarEntryType.EVENT
+                        eventRecurrence = if (type == CalendarEntryType.BIRTHDAY) CalendarRecurrence.YEARLY else CalendarRecurrence.NEVER
+                    },
+                    recurrence = eventRecurrence,
+                    onRecurrenceChange = { eventRecurrence = it },
                     allDay = eventIsAllDay,
                     onToggleAllDay = { eventIsAllDay = !eventIsAllDay },
                     startTime = formatTime(startHour, startMinute),
@@ -409,6 +444,10 @@ internal fun CalendarEventEditor(
     onTitleChange: (String) -> Unit,
     notes: String,
     onNotesChange: (String) -> Unit,
+    entryType: CalendarEntryType,
+    onEntryTypeChange: (CalendarEntryType) -> Unit,
+    recurrence: CalendarRecurrence,
+    onRecurrenceChange: (CalendarRecurrence) -> Unit,
     allDay: Boolean,
     onToggleAllDay: () -> Unit,
     startTime: String,
@@ -426,13 +465,43 @@ internal fun CalendarEventEditor(
     val colors = LocalRetroBitColors.current
     Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("NEW AGENDA", color = colors.inkSecondary, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-        CalendarTextField("TITLE", title, "Agenda title", true, onTitleChange)
+        Text("ENTRY TYPE", color = colors.inkMuted, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            CalendarOptionChip(CalendarEntryType.EVENT.label, entryType == CalendarEntryType.EVENT, Modifier.weight(1f)) {
+                onEntryTypeChange(CalendarEntryType.EVENT)
+            }
+            CalendarOptionChip(CalendarEntryType.BIRTHDAY.label, entryType == CalendarEntryType.BIRTHDAY, Modifier.weight(1f)) {
+                onEntryTypeChange(CalendarEntryType.BIRTHDAY)
+            }
+            CalendarOptionChip(CalendarEntryType.TASK.label, entryType == CalendarEntryType.TASK, Modifier.weight(1f)) {
+                onEntryTypeChange(CalendarEntryType.TASK)
+            }
+        }
+        when (entryType) {
+            CalendarEntryType.BIRTHDAY -> Text("ALL-DAY · REPEATS YEARLY BY DEFAULT", color = colors.inkMuted, fontSize = 7.sp)
+            CalendarEntryType.TASK -> Text("TASK-LIKE DUE DATE · SAVED IN THIS CALENDAR", color = colors.inkMuted, fontSize = 7.sp)
+            CalendarEntryType.EVENT -> Unit
+        }
+        val titlePlaceholder = when (entryType) {
+            CalendarEntryType.EVENT -> "Agenda title"
+            CalendarEntryType.BIRTHDAY -> "Person's name"
+            CalendarEntryType.TASK -> "Task or due item"
+        }
+        CalendarTextField("TITLE", title, titlePlaceholder, true, onTitleChange)
         CalendarTextField("NOTES // OPTIONAL", notes, "Add details", false, onNotesChange)
         Text(if (allDay) "[✓] ALL DAY" else "[ ] ALL DAY", color = colors.inkPrimary, fontSize = 8.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable(onClick = onToggleAllDay).padding(vertical = 3.dp))
         if (!allDay) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 CalendarEditorButton("START // $startTime", Modifier.weight(1f), onChooseStartTime)
                 CalendarEditorButton("END // $endTime", Modifier.weight(1f), onChooseEndTime)
+            }
+        }
+        Text("REPEAT", color = colors.inkMuted, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            CalendarRecurrence.values().forEach { option ->
+                CalendarOptionChip(option.label, recurrence == option, Modifier.weight(1f)) {
+                    onRecurrenceChange(option)
+                }
             }
         }
         if (selectedCalendarName != null) {
@@ -449,6 +518,32 @@ internal fun CalendarEventEditor(
             CalendarEditorButton("CANCEL", Modifier.weight(1f), onCancel)
             CalendarEditorButton(if (saving) "SAVING…" else "SAVE AGENDA", Modifier.weight(1f), onSave, enabled = !saving && title.isNotBlank() && selectedCalendarName != null)
         }
+    }
+}
+
+@Composable
+private fun CalendarOptionChip(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val colors = LocalRetroBitColors.current
+    Box(
+        modifier = modifier
+            .background(if (selected) colors.inkPrimary else colors.surface)
+            .border(1.dp, colors.border)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 3.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (selected) colors.background else colors.inkSecondary,
+            fontSize = 6.5.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
+        )
     }
 }
 
@@ -591,7 +686,9 @@ internal fun insertCalendarEvent(
     startMinute: Int,
     endHour: Int,
     endMinute: Int,
-    allDay: Boolean
+    allDay: Boolean,
+    entryType: CalendarEntryType = CalendarEntryType.EVENT,
+    recurrence: CalendarRecurrence = CalendarRecurrence.NEVER
 ): Boolean {
     if (ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CALENDAR) != PackageManager.PERMISSION_GRANTED) return false
     return try {
@@ -630,15 +727,42 @@ internal fun insertCalendarEvent(
         }
         val values = ContentValues().apply {
             put(CalendarContract.Events.CALENDAR_ID, calendarId)
-            put(CalendarContract.Events.TITLE, title)
+            put(CalendarContract.Events.TITLE, entryType.calendarTitle(title))
             put(CalendarContract.Events.DESCRIPTION, notes)
             put(CalendarContract.Events.DTSTART, start)
-            put(CalendarContract.Events.DTEND, end)
+            if (recurrence.rrule == null) {
+                put(CalendarContract.Events.DTEND, end)
+            } else {
+                val duration = if (allDay) "P1D" else durationToRfc5545(end - start)
+                put(CalendarContract.Events.DURATION, duration)
+                put(CalendarContract.Events.RRULE, recurrence.rrule)
+            }
             put(CalendarContract.Events.EVENT_TIMEZONE, timezone)
             put(CalendarContract.Events.ALL_DAY, if (allDay) 1 else 0)
         }
         context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values) != null
     } catch (_: Exception) {
         false
+    }
+}
+
+private fun durationToRfc5545(durationMillis: Long): String {
+    var remainingSeconds = durationMillis.coerceAtLeast(1_000L) / 1_000L
+    val days = remainingSeconds / 86_400L
+    remainingSeconds %= 86_400L
+    val hours = remainingSeconds / 3_600L
+    remainingSeconds %= 3_600L
+    val minutes = remainingSeconds / 60L
+    val seconds = remainingSeconds % 60L
+
+    return buildString {
+        append('P')
+        if (days > 0) append(days).append('D')
+        if (hours > 0 || minutes > 0 || seconds > 0 || days == 0L) {
+            append('T')
+            if (hours > 0) append(hours).append('H')
+            if (minutes > 0) append(minutes).append('M')
+            if (seconds > 0 || (hours == 0L && minutes == 0L)) append(seconds).append('S')
+        }
     }
 }

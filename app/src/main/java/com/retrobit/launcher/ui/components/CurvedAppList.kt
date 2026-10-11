@@ -59,7 +59,7 @@ fun NiagaraCurvedAppList(
             item(key = "header_favorites") {
                 SectionHeader(title = "// [★] FAVORITES")
             }
-            itemsIndexed(favorites, key = { _, app -> "fav_${app.packageName}" }) { index, app ->
+            itemsIndexed(favorites, key = { index, app -> "fav_${app.packageName}/${app.componentName}#$index" }) { index, app ->
                 AppListItem(
                     app = app,
                     index = index,
@@ -82,6 +82,7 @@ fun NiagaraCurvedAppList(
         }
 
         var lastChar = ""
+        // A package may expose multiple launcher activities; include the component and occurrence in each key.
         apps.forEachIndexed { index, app ->
             val firstChar = app.displayLabel.take(1).uppercase()
             if (searchQuery.isEmpty() && selectedCategory == "ALL" && firstChar != lastChar) {
@@ -91,7 +92,7 @@ fun NiagaraCurvedAppList(
                 }
             }
 
-            item(key = "app_${app.packageName}") {
+            item(key = "app_${app.packageName}/${app.componentName}#$index") {
                 AppListItem(
                     app = app,
                     index = index,
@@ -171,7 +172,9 @@ fun AppListItem(
             contentAlignment = Alignment.Center
         ) {
             val monochromeBitmap = remember(app.icon) {
-                app.icon?.let { drawableToGrayscaleBitmap(it, 44, 44) }
+                app.icon?.let { drawable ->
+                    runCatching { drawableToGrayscaleBitmap(drawable, 44, 44) }.getOrNull()
+                }
             }
 
             if (monochromeBitmap != null) {

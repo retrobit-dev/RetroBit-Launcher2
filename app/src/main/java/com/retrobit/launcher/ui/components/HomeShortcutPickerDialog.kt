@@ -5,7 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,7 +68,7 @@ fun HomeShortcutPickerDialog(
                 Text("No matching apps found.", color = colors.inkMuted, fontSize = 9.sp, modifier = Modifier.padding(8.dp))
             } else {
                 LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
-                    items(visibleApps, key = { it.packageName }) { app ->
+                    itemsIndexed(visibleApps, key = { index, app -> "app_${app.packageName}/${app.componentName}#$index" }) { _, app ->
                         val pinned = app.packageName in pinnedPackages
                         Row(
                             Modifier.fillMaxWidth().padding(vertical = 2.dp)

@@ -215,6 +215,8 @@ private fun CalendarPageModule(
     var isEventEditorOpen by remember { mutableStateOf(false) }
     var eventTitle by remember { mutableStateOf("") }
     var eventNotes by remember { mutableStateOf("") }
+    var eventType by remember { mutableStateOf(CalendarEntryType.EVENT) }
+    var eventRecurrence by remember { mutableStateOf(CalendarRecurrence.NEVER) }
     var eventIsAllDay by remember { mutableStateOf(false) }
     var startHour by remember { mutableIntStateOf(9) }
     var startMinute by remember { mutableIntStateOf(0) }
@@ -229,6 +231,8 @@ private fun CalendarPageModule(
     fun beginEventDraft() {
         eventTitle = ""
         eventNotes = ""
+        eventType = CalendarEntryType.EVENT
+        eventRecurrence = CalendarRecurrence.NEVER
         eventIsAllDay = false
         startHour = 9
         startMinute = 0
@@ -329,6 +333,8 @@ private fun CalendarPageModule(
         val agendaEndHour = endHour
         val agendaEndMinute = endMinute
         val isAllDay = eventIsAllDay
+        val entryType = eventType
+        val recurrence = eventRecurrence
         scope.launch {
             val created = withContext(Dispatchers.IO) {
                 insertCalendarEvent(
@@ -341,7 +347,9 @@ private fun CalendarPageModule(
                     startMinute = agendaStartMinute,
                     endHour = agendaEndHour,
                     endMinute = agendaEndMinute,
-                    allDay = isAllDay
+                    allDay = isAllDay,
+                    entryType = entryType,
+                    recurrence = recurrence
                 )
             }
             isSavingEvent = false
@@ -399,6 +407,14 @@ private fun CalendarPageModule(
                 onTitleChange = { eventTitle = it },
                 notes = eventNotes,
                 onNotesChange = { eventNotes = it },
+                entryType = eventType,
+                onEntryTypeChange = { type ->
+                    eventType = type
+                    eventIsAllDay = type != CalendarEntryType.EVENT
+                    eventRecurrence = if (type == CalendarEntryType.BIRTHDAY) CalendarRecurrence.YEARLY else CalendarRecurrence.NEVER
+                },
+                recurrence = eventRecurrence,
+                onRecurrenceChange = { eventRecurrence = it },
                 allDay = eventIsAllDay,
                 onToggleAllDay = { eventIsAllDay = !eventIsAllDay },
                 startTime = formatCalendarTime(startHour, startMinute),
