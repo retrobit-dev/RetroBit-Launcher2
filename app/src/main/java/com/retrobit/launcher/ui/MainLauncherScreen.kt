@@ -832,47 +832,49 @@ fun MainLauncherScreen(
                 }
             }
 
-            // 6. Bottom toolbar: compact named actions on the left, settings on the right.
+            // 6. Minimal bottom toolbar: two actions at each side, with Settings set apart.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    .height(40.dp)
                     .background(colors.surface)
                     .border(0.5.dp, colors.border)
-                    .padding(horizontal = 12.dp, vertical = 5.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 DeckIconButton(
                     icon = Icons.Filled.Refresh,
                     label = "REFRESH",
                     contentDescription = "Refresh launcher",
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.height(32.dp),
                     onClick = { triggerRefreshCycle() }
                 )
+                Spacer(Modifier.width(6.dp))
                 DeckIconButton(
                     icon = Icons.Filled.Code,
-                    label = "TERMINAL",
+                    label = "TERM",
                     contentDescription = "Open terminal",
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.height(32.dp),
                     onClick = { isTerminalOpen = true }
                 )
+                Spacer(Modifier.weight(1f))
                 DeckIconButton(
                     icon = if (isAutoHideEnabled) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
                     label = "APPS",
                     contentDescription = if (isAutoHideEnabled) "Disable stealth app list" else "Enable stealth app list",
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.height(32.dp)
                 ) {
                     isAutoHideEnabled = !isAutoHideEnabled
                     featureStore.appDrawerAutoHideEnabled = isAutoHideEnabled
                     keepDrawerOpen = false
                     if (!isAutoHideEnabled) isAppListRevealed = true
                 }
+                Spacer(Modifier.width(12.dp))
                 DeckIconButton(
                     icon = Icons.Filled.Settings,
                     label = "SETTINGS",
                     contentDescription = "Open settings",
-                    modifier = Modifier.width(84.dp),
+                    modifier = Modifier.height(32.dp),
                     onClick = { isSettingsOpen = true }
                 )
             }
@@ -1151,20 +1153,20 @@ fun DeckIconButton(
         contentAlignment = Alignment.Center
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 5.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(horizontal = 3.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = contentDescription,
                 tint = colors.inkPrimary,
-                modifier = Modifier.size(9.dp)
+                modifier = Modifier.size(8.dp)
             )
             Text(
                 text = label,
                 color = colors.inkPrimary,
-                fontSize = 9.sp,
+                fontSize = 8.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
