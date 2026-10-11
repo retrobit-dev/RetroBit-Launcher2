@@ -17,11 +17,19 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -77,7 +85,7 @@ fun MainLauncherScreen(
     var favorites by remember { mutableStateOf<List<AppModel>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("ALL") }
-    var isCurved by remember { mutableStateOf(true) }
+    var isCurved by remember { mutableStateOf(featureStore.arcAppListEnabled) }
     var isMediaVisible by remember { mutableStateOf(true) }
     var isFocusModeEnabled by remember { mutableStateOf(featureStore.focusModeEnabled) }
     var iconSizeDp by remember { mutableFloatStateOf(featureStore.iconSizeDp) }
@@ -680,7 +688,9 @@ fun MainLauncherScreen(
                             featureStore.removeHomeShortcut(packageName)
                             homeShortcutPackages = featureStore.getHomeShortcutPackages()
                         },
+                        onRemoveWidget = ::removeHomeWidget,
                         onMoveShortcut = ::moveHomeShortcut,
+                        onMoveWidget = ::moveHomeWidget,
                         onOpenWidgetSettings = { isHomeWidgetSettingsOpen = true },
                         onShortcutLayoutChange = ::setHomeShortcutLayout,
                         modifier = Modifier
@@ -806,33 +816,44 @@ fun MainLauncherScreen(
                 }
             }
 
-            // 6. Bottom Chassis Deck Toolbar
+            // 6. Bottom chassis toolbar: uniform-height, icon-only controls.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(colors.surface)
                     .border(0.5.dp, colors.border)
                     .padding(horizontal = 14.dp, vertical = 5.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    DeckButton(label = "⟳ REFRESH") { triggerRefreshCycle() }
-                    DeckButton(label = ">_ TERM") { isTerminalOpen = true }
-                    DeckButton(label = if (isAutoHideEnabled) "STEALTH: ON" else "STEALTH: OFF") {
-                        isAutoHideEnabled = !isAutoHideEnabled
-                        featureStore.appDrawerAutoHideEnabled = isAutoHideEnabled
-                        keepDrawerOpen = false
-                        if (!isAutoHideEnabled) isAppListRevealed = true
-                    }
+                DeckIconButton(
+                    icon = Icons.Filled.Refresh,
+                    contentDescription = "Refresh launcher",
+                    modifier = Modifier.weight(1f),
+                    onClick = { triggerRefreshCycle() }
+                )
+                DeckIconButton(
+                    icon = Icons.Filled.Code,
+                    contentDescription = "Open terminal",
+                    modifier = Modifier.weight(1f),
+                    onClick = { isTerminalOpen = true }
+                )
+                DeckIconButton(
+                    icon = if (isAutoHideEnabled) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                    contentDescription = if (isAutoHideEnabled) "Disable stealth app list" else "Enable stealth app list",
+                    modifier = Modifier.weight(1f)
+                ) {
+                    isAutoHideEnabled = !isAutoHideEnabled
+                    featureStore.appDrawerAutoHideEnabled = isAutoHideEnabled
+                    keepDrawerOpen = false
+                    if (!isAutoHideEnabled) isAppListRevealed = true
                 }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    DeckButton(label = if (isCurved) "ARC: ON" else "ARC: OFF") {
-                        isCurved = !isCurved
-                    }
-                    DeckButton(label = "SETTINGS") { isSettingsOpen = true }
-                }
+                DeckIconButton(
+                    icon = Icons.Filled.Settings,
+                    contentDescription = "Open settings",
+                    modifier = Modifier.weight(1f),
+                    onClick = { isSettingsOpen = true }
+                )
             }
         }
 
@@ -1027,6 +1048,7 @@ fun MainLauncherScreen(
                 currentTheme = currentTheme,
                 focusModeEnabled = isFocusModeEnabled,
                 iconSizeDp = iconSizeDp,
+                arcAppListEnabled = isCurved,
                 launcherTextScale = launcherTextScale,
                 appDrawerAutoHideEnabled = isAutoHideEnabled,
                 appDrawerAutoHideDelaySeconds = appDrawerAutoHideDelaySeconds,
@@ -1038,6 +1060,10 @@ fun MainLauncherScreen(
                 onIconSizeChanged = {
                     iconSizeDp = it
                     featureStore.iconSizeDp = it
+                },
+                onArcAppListEnabledChanged = {
+                    isCurved = it
+                    featureStore.arcAppListEnabled = it
                 },
                 onLauncherTextScaleChanged = onLauncherTextScaleChange,
                 onAppDrawerAutoHideEnabledChanged = {
@@ -1084,30 +1110,28 @@ fun MainLauncherScreen(
     }
 }
 
-/**
- * Tombol toolbar kecil bergaya chassis cyberdeck untuk barisan kontrol bawah.
- */
+/** Uniform-height icon-only control for the bottom chassis toolbar. */
 @Composable
-fun DeckButton(
-    label: String,
+fun DeckIconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val colors = LocalRetroBitColors.current
     Box(
-        modifier = Modifier
-            .clickable(onClick = onClick)
+        modifier = modifier
+            .height(42.dp)
             .background(colors.background)
             .border(1.dp, colors.border, RoundedCornerShape(2.dp))
-            .padding(horizontal = 8.dp, vertical = 5.dp),
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            fontSize = 8.5.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-            color = colors.inkPrimary,
-            letterSpacing = 0.5.sp
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = colors.inkPrimary,
+            modifier = Modifier.size(20.dp)
         )
     }
 }

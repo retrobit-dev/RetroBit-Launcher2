@@ -121,6 +121,10 @@ class LauncherFeatureStore(context: Context) {
         } ?: HomeWidgetLayout.VERTICAL
         set(value) { prefs.edit().putString(KEY_HOME_WIDGET_LAYOUT, value.name).apply() }
 
+    var arcAppListEnabled: Boolean
+        get() = prefs.getBoolean(KEY_ARC_APP_LIST_ENABLED, false)
+        set(value) { prefs.edit().putBoolean(KEY_ARC_APP_LIST_ENABLED, value).apply() }
+
     private fun gestureAction(key: String, default: HomeGestureAction): HomeGestureAction =
         prefs.getString(key, null)?.let { value ->
             runCatching { HomeGestureAction.valueOf(value) }.getOrNull()
@@ -455,6 +459,7 @@ class LauncherFeatureStore(context: Context) {
         private const val KEY_HOME_WIDGET_SIZES = "home_widget_sizes"
         private const val KEY_HOME_SHORTCUT_LAYOUT = "home_shortcut_layout"
         private const val KEY_HOME_WIDGET_LAYOUT = "home_widget_layout"
+        private const val KEY_ARC_APP_LIST_ENABLED = "arc_app_list_enabled"
         private const val KEY_LOCKSCREEN_PIN_HASH = "feature_lockscreen_pin_hash"
         private const val KEY_LOCKSCREEN_PIN_SALT = "feature_lockscreen_pin_salt"
         private const val KEY_CUSTOM_PALETTE = "feature_custom_palette"

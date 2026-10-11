@@ -13,7 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -31,15 +32,29 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.consume
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -53,6 +68,8 @@ import com.retrobit.launcher.data.LauncherFeatureStore.HomeWidgetLayout
 import com.retrobit.launcher.data.LauncherFeatureStore.HomeWidgetSize
 import com.retrobit.launcher.ui.theme.LocalRetroBitColors
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.abs
 
 @Composable
 fun HomeDashboard(
@@ -71,7 +88,9 @@ fun HomeDashboard(
     onAddApp: () -> Unit,
     onAddWidget: () -> Unit,
     onRemoveShortcut: (String) -> Unit,
+    onRemoveWidget: (Int) -> Unit,
     onMoveShortcut: (String, Int) -> Unit,
+    onMoveWidget: (Int, Int) -> Unit,
     onOpenWidgetSettings: () -> Unit,
     onShortcutLayoutChange: (HomeContentLayout) -> Unit,
     modifier: Modifier = Modifier
@@ -85,19 +104,48 @@ fun HomeDashboard(
         homeShortcutPackages.mapNotNull { appByPackage[it] }
     }
     val manualShortcutRows = remember(shortcuts) { shortcuts.chunked(4) }
+    val dragController = remember { HomeCardDragController() }
+    val handleCardDrop: (HomeCardDrop) -> Unit = { drop ->
+        when (drop) {
+            is HomeCardDrop.RemoveShortcut -> onRemoveShortcut(drop.packageName)
+            is HomeCardDrop.RemoveWidget -> onRemoveWidget(drop.widgetId)
+            is HomeCardDrop.MoveShortcut -> {
+                val offset = homeMoveOffsetForDrop(
+                    order = homeShortcutPackages,
+                    source = drop.packageName,
+                    target = drop.targetPackageName,
+                    after = drop.after
+                )
+                if (offset != null) onMoveShortcut(drop.packageName, offset)
+            }
+            is HomeCardDrop.MoveWidget -> {
+                val offset = homeMoveOffsetForDrop(
+                    order = widgetIds,
+                    source = drop.widgetId,
+                    target = drop.targetWidgetId,
+                    after = drop.after
+                )
+                if (offset != null) onMoveWidget(drop.widgetId, offset)
+            }
+        }
+    }
+    val currentOnCardDrop by rememberUpdatedState(handleCardDrop)
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(7.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+    Box(
+        modifier = modifier.fillMaxSize().onGloballyPositioned(dragController::updateHomeBounds)
     ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+        ) {
         item(key = "home-title") {
             Column(Modifier.fillMaxWidth().background(colors.surface).border(1.dp, colors.border).padding(10.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("HOME // PERSONAL DECK", color = colors.inkPrimary, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
                         Text(
-                            if (isEditing) "Edit mode // hold a blank area to close." else "Swipe right for widgets · hold blank space to edit.",
+                            if (isEditing) "Edit mode // hold blank space to close; drag cards to sort or remove." else "Swipe right for widgets · hold blank space to edit · hold-drag cards.",
                             color = colors.inkSecondary,
                             fontSize = 8.sp
                         )
@@ -128,7 +176,7 @@ fun HomeDashboard(
                     )
                     HomeAction("WIDGET SETTINGS  //  STACK · SWIPE · SIZE", Modifier.fillMaxWidth(), onOpenWidgetSettings)
                     Text("Manage widget layout, swipe behavior, order and size in one place.", color = colors.inkMuted, fontSize = 7.sp)
-                    Text("Hold an app icon to customize it; MANUAL app layout uses ↑ ↓ to reorder and × to remove.", color = colors.inkMuted, fontSize = 7.sp)
+                    Text("Hold and drag cards to reorder or remove; use ◈ to customize icons. Manual arrows remain available.", color = colors.inkMuted, fontSize = 7.sp)
                 }
             }
         }
@@ -172,7 +220,14 @@ fun HomeDashboard(
                                     widgetHost = widgetHost,
                                     manager = manager,
                                     availableWidth = availableWidth,
-                                    modifier = Modifier,
+                                    modifier = Modifier.homeCardDragTarget(
+                                        controller = dragController,
+                                        cardKey = widgetCardKey(widgetId),
+                                        cardKind = HomeCardKind.WIDGET,
+                                        shortcutLayout = shortcutLayout,
+                                        widgetLayout = widgetLayout,
+                                        onDrop = currentOnCardDrop
+                                    ),
                                     fillAvailableWidth = false,
                                     contentAlignment = Alignment.CenterStart
                                 )
@@ -190,7 +245,14 @@ fun HomeDashboard(
                             widgetHost = widgetHost,
                             manager = manager,
                             availableWidth = maxWidth,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().homeCardDragTarget(
+                                controller = dragController,
+                                cardKey = widgetCardKey(widgetId),
+                                cardKind = HomeCardKind.WIDGET,
+                                shortcutLayout = shortcutLayout,
+                                widgetLayout = widgetLayout,
+                                onDrop = currentOnCardDrop
+                            ),
                             fillAvailableWidth = true,
                             contentAlignment = Alignment.CenterStart
                         )
@@ -214,7 +276,16 @@ fun HomeDashboard(
                             key = { page -> widgetIds[page] }
                         ) { page ->
                             val widgetId = widgetIds[page]
-                            BoxWithConstraints(Modifier.fillMaxSize()) {
+                            BoxWithConstraints(
+                                Modifier.fillMaxSize().homeCardDragTarget(
+                                    controller = dragController,
+                                    cardKey = widgetCardKey(widgetId),
+                                    cardKind = HomeCardKind.WIDGET,
+                                    shortcutLayout = shortcutLayout,
+                                    widgetLayout = widgetLayout,
+                                    onDrop = currentOnCardDrop
+                                )
+                            ) {
                                 HomeWidgetFrame(
                                     widgetId = widgetId,
                                     savedSize = widgetSizes[widgetId],
@@ -275,7 +346,14 @@ fun HomeDashboard(
                                 iconSizeDp = iconSizeDp,
                                 layout = HomeContentLayout.HORIZONTAL,
                                 isEditing = isEditing,
-                                modifier = Modifier.width(76.dp),
+                                modifier = Modifier.width(76.dp).homeCardDragTarget(
+                                    controller = dragController,
+                                    cardKey = shortcutCardKey(app.packageName),
+                                    cardKind = HomeCardKind.SHORTCUT,
+                                    shortcutLayout = shortcutLayout,
+                                    widgetLayout = widgetLayout,
+                                    onDrop = currentOnCardDrop
+                                ),
                                 onLaunch = { onLaunchApp(app) },
                                 onChangeIcon = { onChangeIcon(app) },
                                 onRemove = { onRemoveShortcut(app.packageName) },
@@ -292,7 +370,14 @@ fun HomeDashboard(
                         iconSizeDp = iconSizeDp,
                         layout = HomeContentLayout.VERTICAL,
                         isEditing = isEditing,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().homeCardDragTarget(
+                            controller = dragController,
+                            cardKey = shortcutCardKey(app.packageName),
+                            cardKind = HomeCardKind.SHORTCUT,
+                            shortcutLayout = shortcutLayout,
+                            widgetLayout = widgetLayout,
+                            onDrop = currentOnCardDrop
+                        ),
                         onLaunch = { onLaunchApp(app) },
                         onChangeIcon = { onChangeIcon(app) },
                         onRemove = { onRemoveShortcut(app.packageName) },
@@ -309,7 +394,14 @@ fun HomeDashboard(
                                 iconSizeDp = iconSizeDp,
                                 layout = HomeContentLayout.MANUAL,
                                 isEditing = isEditing,
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(1f).homeCardDragTarget(
+                                    controller = dragController,
+                                    cardKey = shortcutCardKey(app.packageName),
+                                    cardKind = HomeCardKind.SHORTCUT,
+                                    shortcutLayout = shortcutLayout,
+                                    widgetLayout = widgetLayout,
+                                    onDrop = currentOnCardDrop
+                                ),
                                 onLaunch = { onLaunchApp(app) },
                                 onChangeIcon = { onChangeIcon(app) },
                                 onRemove = { onRemoveShortcut(app.packageName) },
@@ -324,13 +416,318 @@ fun HomeDashboard(
 
         item(key = "home-scroll-hint") {
             Text(
-                "SCROLL THE DECK ↑↓ // swipe right for WIDGET PAGE · hold blank area to edit",
+                "SCROLL THE DECK ↑↓ // swipe right for WIDGET PAGE · hold-drag cards to sort/remove",
                 color = colors.inkMuted,
                 fontSize = 7.sp,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
             )
         }
+        }
+
+        if (dragController.activeCard != null) {
+            val hoveringRemovalArea = dragController.isPointerOverRemovalArea
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .background(if (hoveringRemovalArea) colors.inkPrimary else colors.surface)
+                    .border(2.dp, colors.inkPrimary)
+                    .onGloballyPositioned(dragController::updateRemovalBounds),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "⌫  DROP HERE TO REMOVE",
+                    color = if (hoveringRemovalArea) colors.background else colors.inkPrimary,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
+        }
     }
+}
+
+private enum class HomeCardKind { SHORTCUT, WIDGET }
+
+private data class ActiveHomeCardDrag(
+    val cardKey: String,
+    val kind: HomeCardKind,
+    val pointerInRoot: Offset
+)
+
+private sealed class HomeCardDrop {
+    data class RemoveShortcut(val packageName: String) : HomeCardDrop()
+    data class RemoveWidget(val widgetId: Int) : HomeCardDrop()
+    data class MoveShortcut(val packageName: String, val targetPackageName: String?, val after: Boolean) : HomeCardDrop()
+    data class MoveWidget(val widgetId: Int, val targetWidgetId: Int?, val after: Boolean) : HomeCardDrop()
+}
+
+private class HomeCardDragController {
+    private val cardBounds = mutableStateMapOf<String, Rect>()
+
+    var activeCard by mutableStateOf<ActiveHomeCardDrag?>(null)
+        private set
+    var activeDropTargetKey by mutableStateOf<String?>(null)
+        private set
+    var pointerInRoot by mutableStateOf<Offset?>(null)
+        private set
+    private var homeBounds by mutableStateOf<Rect?>(null)
+    private var removalBounds by mutableStateOf<Rect?>(null)
+    private var hoveredCardKey by mutableStateOf<String?>(null)
+
+    val isPointerOverRemovalArea: Boolean
+        get() = pointerInRoot?.let { removalBounds?.contains(it) } == true
+
+    fun updateHomeBounds(coordinates: LayoutCoordinates) {
+        homeBounds = coordinates.toHomeRect()
+    }
+
+    fun updateRemovalBounds(coordinates: LayoutCoordinates) {
+        removalBounds = coordinates.toHomeRect()
+    }
+
+    fun updateCardBounds(cardKey: String, coordinates: LayoutCoordinates) {
+        val bounds = coordinates.toHomeRect()
+        if (cardBounds[cardKey] != bounds) {
+            cardBounds[cardKey] = bounds
+            refreshHoveredCard()
+        }
+    }
+
+    fun removeCardBounds(cardKey: String) {
+        cardBounds.remove(cardKey)
+        refreshHoveredCard()
+    }
+
+    fun start(cardKey: String, kind: HomeCardKind, pointer: Offset) {
+        activeCard = ActiveHomeCardDrag(cardKey, kind, pointer)
+        updatePointer(pointer)
+    }
+
+    fun updatePointer(pointer: Offset) {
+        pointerInRoot = pointer
+        activeCard = activeCard?.copy(pointerInRoot = pointer)
+        refreshHoveredCard()
+    }
+
+    fun cancel() {
+        activeCard = null
+        activeDropTargetKey = null
+        pointerInRoot = null
+        hoveredCardKey = null
+    }
+
+    fun finish(shortcutLayout: HomeContentLayout, widgetLayout: HomeWidgetLayout): HomeCardDrop? {
+        val drag = activeCard ?: return null
+        val pointer = pointerInRoot ?: drag.pointerInRoot
+        val sourceBounds = cardBounds[drag.cardKey]
+        val targetKey = hoveredCardKey
+        val targetBounds = targetKey?.let(cardBounds::get)
+        val drop = when {
+            removalBounds?.contains(pointer) == true -> when (drag.kind) {
+                HomeCardKind.SHORTCUT -> HomeCardDrop.RemoveShortcut(drag.cardKey.substringAfter(':'))
+                HomeCardKind.WIDGET -> drag.cardKey.substringAfter(':').toIntOrNull()?.let { HomeCardDrop.RemoveWidget(it) }
+            }
+            homeBounds?.contains(pointer) != true -> null
+            sourceBounds?.contains(pointer) == true -> null
+            targetKey != null && targetBounds != null -> {
+                if (kindOfCardKey(targetKey) != drag.kind) null
+                else {
+                    val after = isAfterTarget(pointer, targetBounds, drag.kind, shortcutLayout, widgetLayout)
+                    when (drag.kind) {
+                        HomeCardKind.SHORTCUT -> HomeCardDrop.MoveShortcut(
+                            packageName = drag.cardKey.substringAfter(':'),
+                            targetPackageName = targetKey.substringAfter(':'),
+                            after = after
+                        )
+                        HomeCardKind.WIDGET -> {
+                            val sourceId = drag.cardKey.substringAfter(':').toIntOrNull()
+                            val targetId = targetKey.substringAfter(':').toIntOrNull()
+                            if (sourceId == null || targetId == null) null
+                            else HomeCardDrop.MoveWidget(sourceId, targetId, after)
+                        }
+                    }
+                }
+            }
+            else -> when (drag.kind) {
+                HomeCardKind.SHORTCUT -> HomeCardDrop.MoveShortcut(
+                    packageName = drag.cardKey.substringAfter(':'),
+                    targetPackageName = null,
+                    after = true
+                )
+                HomeCardKind.WIDGET -> drag.cardKey.substringAfter(':').toIntOrNull()?.let {
+                    HomeCardDrop.MoveWidget(it, targetWidgetId = null, after = true)
+                }
+            }
+        }
+        cancel()
+        return drop
+    }
+
+    private fun refreshHoveredCard() {
+        val active = activeCard
+        val pointer = pointerInRoot
+        if (active == null || pointer == null) {
+            hoveredCardKey = null
+            activeDropTargetKey = null
+            return
+        }
+        val hovered = cardBounds.entries.firstOrNull { (key, bounds) ->
+            key != active.cardKey && bounds.contains(pointer)
+        }?.key
+        hoveredCardKey = hovered
+        activeDropTargetKey = hovered?.takeIf { kindOfCardKey(it) == active.kind }
+    }
+}
+
+@Composable
+private fun Modifier.homeCardDragTarget(
+    controller: HomeCardDragController,
+    cardKey: String,
+    cardKind: HomeCardKind,
+    shortcutLayout: HomeContentLayout,
+    widgetLayout: HomeWidgetLayout,
+    onDrop: (HomeCardDrop) -> Unit
+): Modifier {
+    val colors = LocalRetroBitColors.current
+    val coordinates = remember(cardKey) { mutableStateOf<LayoutCoordinates?>(null) }
+    val latestOnDrop by rememberUpdatedState(onDrop)
+    val isDragging = controller.activeCard?.cardKey == cardKey
+    val isDropTarget = controller.activeDropTargetKey == cardKey
+
+    DisposableEffect(controller, cardKey) {
+        onDispose {
+            controller.removeCardBounds(cardKey)
+            if (controller.activeCard?.cardKey == cardKey) controller.cancel()
+        }
+    }
+
+    return this
+        .onGloballyPositioned { layoutCoordinates ->
+            coordinates.value = layoutCoordinates
+            controller.updateCardBounds(cardKey, layoutCoordinates)
+        }
+        .pointerInput(controller, cardKey, cardKind, shortcutLayout, widgetLayout) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                var current = down
+                var longPressReached = false
+                var movedBeforeLongPress = false
+                var dragging = false
+                var cancelled = false
+
+                while (current.pressed) {
+                    val elapsed = current.uptimeMillis - down.uptimeMillis
+                    val remainingLongPress = viewConfiguration.longPressTimeoutMillis - elapsed
+                    val event = if (!longPressReached && !movedBeforeLongPress && remainingLongPress > 0L) {
+                        withTimeoutOrNull(remainingLongPress) {
+                            awaitPointerEvent(PointerEventPass.Initial)
+                        }
+                    } else {
+                        awaitPointerEvent(PointerEventPass.Initial)
+                    }
+
+                    if (event == null) {
+                        longPressReached = true
+                        continue
+                    }
+                    if (event.changes.count { it.pressed } > 1) {
+                        cancelled = true
+                        controller.cancel()
+                        break
+                    }
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    val distanceFromDown = (change.position - down.position).getDistance()
+                    if (!longPressReached && distanceFromDown > viewConfiguration.touchSlop) {
+                        movedBeforeLongPress = true
+                    }
+                    if (
+                        longPressReached && !movedBeforeLongPress && !dragging &&
+                        distanceFromDown > viewConfiguration.touchSlop
+                    ) {
+                        val rootPosition = coordinates.value?.localToRoot(change.position)
+                        if (rootPosition != null) {
+                            controller.start(cardKey, cardKind, rootPosition)
+                            dragging = true
+                        }
+                    }
+                    if (dragging) {
+                        coordinates.value?.localToRoot(change.position)?.let(controller::updatePointer)
+                        change.consume()
+                    }
+                    current = change
+                }
+
+                if (dragging && !cancelled) {
+                    controller.finish(shortcutLayout, widgetLayout)?.let(latestOnDrop)
+                } else if (cancelled) {
+                    controller.cancel()
+                }
+            }
+        }
+        .then(if (isDragging) Modifier.graphicsLayer { alpha = 0.55f } else Modifier)
+        .then(if (isDropTarget) Modifier.border(2.dp, colors.inkPrimary) else Modifier)
+}
+
+private fun LayoutCoordinates.toHomeRect(): Rect {
+    val origin = positionInRoot()
+    return Rect(
+        left = origin.x,
+        top = origin.y,
+        right = origin.x + size.width.toFloat(),
+        bottom = origin.y + size.height.toFloat()
+    )
+}
+
+private fun shortcutCardKey(packageName: String): String = "shortcut:$packageName"
+private fun widgetCardKey(widgetId: Int): String = "widget:$widgetId"
+
+private fun kindOfCardKey(cardKey: String): HomeCardKind? = when {
+    cardKey.startsWith("shortcut:") -> HomeCardKind.SHORTCUT
+    cardKey.startsWith("widget:") -> HomeCardKind.WIDGET
+    else -> null
+}
+
+private fun isAfterTarget(
+    pointer: Offset,
+    bounds: Rect,
+    cardKind: HomeCardKind,
+    shortcutLayout: HomeContentLayout,
+    widgetLayout: HomeWidgetLayout
+): Boolean {
+    val center = bounds.center
+    return when (cardKind) {
+        HomeCardKind.SHORTCUT -> when (shortcutLayout) {
+            HomeContentLayout.HORIZONTAL -> pointer.x >= center.x
+            HomeContentLayout.VERTICAL -> pointer.y >= center.y
+            HomeContentLayout.MANUAL -> {
+                val verticalOffset = pointer.y - center.y
+                if (abs(verticalOffset) > bounds.height * 0.2f) verticalOffset > 0f
+                else pointer.x >= center.x
+            }
+        }
+        HomeCardKind.WIDGET -> when (widgetLayout) {
+            HomeWidgetLayout.HORIZONTAL, HomeWidgetLayout.STACK -> pointer.x >= center.x
+            HomeWidgetLayout.VERTICAL, HomeWidgetLayout.MANUAL -> pointer.y >= center.y
+        }
+    }
+}
+
+private fun <T> homeMoveOffsetForDrop(
+    order: List<T>,
+    source: T,
+    target: T?,
+    after: Boolean
+): Int? {
+    val sourceIndex = order.indexOf(source)
+    if (sourceIndex < 0 || order.size < 2) return null
+    val targetIndex = if (target == null) order.size else order.indexOf(target)
+    if (targetIndex < 0 || target == source) return null
+    val insertionIndex = if (target == null) order.size else targetIndex + if (after) 1 else 0
+    val destinationIndex = (if (sourceIndex < insertionIndex) insertionIndex - 1 else insertionIndex)
+        .coerceIn(0, order.lastIndex)
+    return (destinationIndex - sourceIndex).takeIf { it != 0 }
 }
 
 @Composable
@@ -436,7 +833,7 @@ private fun HomeShortcutTile(
             Modifier.size(iconSize)
                 .background(colors.surface)
                 .border(1.dp, colors.border)
-                .combinedClickable(onClick = onLaunch, onLongClick = onChangeIcon),
+                .clickable(onClick = onLaunch),
             contentAlignment = Alignment.Center
         ) {
             if (bitmap != null) {

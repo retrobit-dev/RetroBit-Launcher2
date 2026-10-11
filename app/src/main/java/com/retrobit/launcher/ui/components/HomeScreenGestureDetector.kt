@@ -46,8 +46,9 @@ fun Modifier.homeScreenGestureDetector(
 
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-            var childConsumed = awaitPointerEvent(PointerEventPass.Final)
+            var childConsumedTap = awaitPointerEvent(PointerEventPass.Final)
                 .changes.any { it.id == down.id && it.isConsumed }
+            var childConsumedHorizontalDrag = false
             var current = down
             var moved = false
             var multiTouch = false
@@ -63,7 +64,7 @@ fun Modifier.homeScreenGestureDetector(
                     awaitPointerEvent(PointerEventPass.Initial)
                 }
                 if (event == null) {
-                    if (!moved && !multiTouch && !childConsumed) {
+                    if (!moved && !multiTouch && !childConsumedTap) {
                         lastTapTime = 0L
                         currentOnLongPress()
                         longPressTriggered = true
@@ -73,12 +74,18 @@ fun Modifier.homeScreenGestureDetector(
                 if (event.changes.count { it.pressed } > 1) multiTouch = true
                 if (event.changes.firstOrNull { it.id == down.id } == null) break
                 val finalEvent = awaitPointerEvent(PointerEventPass.Final)
-                if (finalEvent.changes.any { it.id == down.id && it.isConsumed }) childConsumed = true
                 val change = finalEvent.changes.firstOrNull { it.id == down.id } ?: break
                 val dx = change.position.x - down.position.x
                 val dy = change.position.y - down.position.y
                 maxDistance = maxOf(maxDistance, abs(dx), abs(dy))
                 if (maxDistance > viewConfiguration.touchSlop) moved = true
+                if (change.isConsumed) {
+                    if (maxDistance > viewConfiguration.touchSlop && abs(dx) > abs(dy) * 1.2f) {
+                        childConsumedHorizontalDrag = true
+                    } else if (maxDistance <= viewConfiguration.touchSlop) {
+                        childConsumedTap = true
+                    }
+                }
                 current = change
             }
 
@@ -88,7 +95,7 @@ fun Modifier.homeScreenGestureDetector(
 
             if (multiTouch) {
                 lastTapTime = 0L
-            } else if (!moved && childConsumed) {
+            } else if (!moved && childConsumedTap) {
                 lastTapTime = 0L
             } else if (!moved) {
                 when {
@@ -122,12 +129,14 @@ fun Modifier.homeScreenGestureDetector(
                         abs(dy) >= swipeDistance &&
                         abs(dy) > abs(dx) * 1.2f &&
                         duration in 1L..700L
-                when {
-                    isQuickHorizontalSwipe && !childConsumed -> {
-                        if (dx > 0f) currentOnSwipeRight() else currentOnSwipeLeft()
-                    }
-                    isQuickVerticalSwipe -> {
-                        if (dy < 0f) currentOnSwipeUp() else currentOnSwipeDown()
+                if (!longPressTriggered) {
+                    when {
+                        isQuickHorizontalSwipe && !childConsumedHorizontalDrag -> {
+                            if (dx > 0f) currentOnSwipeRight() else currentOnSwipeLeft()
+                        }
+                        isQuickVerticalSwipe -> {
+                            if (dy < 0f) currentOnSwipeUp() else currentOnSwipeDown()
+                        }
                     }
                 }
             }

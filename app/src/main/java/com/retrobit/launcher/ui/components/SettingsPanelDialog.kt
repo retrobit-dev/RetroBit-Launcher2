@@ -45,12 +45,14 @@ fun SettingsPanelDialog(
     currentTheme: RetroBitThemeMode,
     focusModeEnabled: Boolean,
     iconSizeDp: Float,
+    arcAppListEnabled: Boolean,
     launcherTextScale: Float,
     appDrawerAutoHideEnabled: Boolean,
     appDrawerAutoHideDelaySeconds: Int,
     homeSwipeThresholdDp: Float,
     onFocusModeChanged: (Boolean) -> Unit,
     onIconSizeChanged: (Float) -> Unit,
+    onArcAppListEnabledChanged: (Boolean) -> Unit,
     onLauncherTextScaleChanged: (Float) -> Unit,
     onAppDrawerAutoHideEnabledChanged: (Boolean) -> Unit,
     onAppDrawerAutoHideDelayChanged: (Int) -> Unit,
@@ -261,6 +263,13 @@ fun SettingsPanelDialog(
                                 }
                             )
                         }
+                        SectionLabel("APP LIST")
+                        ToggleSetting(
+                            title = "ARC APP LIST",
+                            detail = "Use the curved app-drawer layout. Off by default; this does not change Home.",
+                            checked = arcAppListEnabled,
+                            onCheckedChange = onArcAppListEnabledChanged
+                        )
                         SectionLabel("ICON SIZE")
                         Text("${iconSizeDp.toInt()} dp", color = colors.inkSecondary, fontSize = 9.sp)
                         Slider(value = iconSizeDp, onValueChange = onIconSizeChanged, valueRange = 28f..72f)
