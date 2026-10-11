@@ -263,7 +263,7 @@ fun SettingsPanelDialog(
                             statusMessage = "System icons selected."
                         })
                         if (iconPacks.isEmpty()) {
-                            Text("No compatible ADW-style icon packs were found.", color = colors.inkMuted, fontSize = 9.sp)
+                            Text("No compatible installed icon packs were found.", color = colors.inkMuted, fontSize = 9.sp)
                         } else {
                             iconPacks.forEach { pack ->
                                 SettingAction(

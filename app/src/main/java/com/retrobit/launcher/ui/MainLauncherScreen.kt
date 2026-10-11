@@ -4,6 +4,7 @@ import android.app.Activity
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
 import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -107,6 +108,8 @@ fun MainLauncherScreen(
 
     // Dialog & UI states
     var selectedAppForModal by remember { mutableStateOf<AppModel?>(null) }
+    var selectedAppForIcon by remember { mutableStateOf<AppModel?>(null) }
+    var pendingAppIconImage by remember { mutableStateOf<AppModel?>(null) }
     var appToRename by remember { mutableStateOf<AppModel?>(null) }
     var appPendingMindfulLaunch by remember { mutableStateOf<AppModel?>(null) }
     var launchRestriction by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -283,6 +286,34 @@ fun MainLauncherScreen(
             allApps = list
             favorites = list.filter { it.isFavorite && !it.isHidden }
         }
+    }
+
+    val appIconImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val app = pendingAppIconImage
+        pendingAppIconImage = null
+        if (uri != null && app != null) {
+            val canPersistAccess = runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }.isSuccess
+            repository.setCustomAppIconImage(app.packageName, uri)
+            refreshApps()
+            Toast.makeText(
+                context,
+                if (canPersistAccess) "Custom icon applied to Home and app drawer." else "Icon applied; this document may not remain available after restart.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    fun chooseCustomIconImage(app: AppModel) {
+        selectedAppForIcon = null
+        pendingAppIconImage = app
+        runCatching { appIconImagePicker.launch(arrayOf("image/*")) }
+            .onFailure {
+                pendingAppIconImage = null
+                selectedAppForIcon = app
+                Toast.makeText(context, "Could not open the image picker.", Toast.LENGTH_SHORT).show()
+            }
     }
 
     LaunchedEffect(Unit) {
@@ -581,6 +612,7 @@ fun MainLauncherScreen(
                         isEditing = isHomeEditing,
                         onToggleEdit = { isHomeEditing = !isHomeEditing },
                         onLaunchApp = { launchAppWithPolicies(it) },
+                        onChangeIcon = { selectedAppForIcon = it },
                         onAddApp = { isHomeShortcutPickerOpen = true },
                         onAddWidget = { launchWidgetPicker() },
                         onRemoveShortcut = { packageName ->
@@ -774,6 +806,10 @@ fun MainLauncherScreen(
                     appToRename = app
                     selectedAppForModal = null
                 },
+                onChangeIcon = {
+                    selectedAppForIcon = app
+                    selectedAppForModal = null
+                },
                 onToggleFavorite = {
                     repository.toggleFavorite(app.packageName)
                     selectedAppForModal = null
@@ -797,6 +833,31 @@ fun MainLauncherScreen(
                     selectedAppForModal = null
                     repository.uninstallApp(app.packageName)
                 }
+            )
+        }
+
+        selectedAppForIcon?.let { app ->
+            val hasCustomIcon = repository.hasCustomAppIcon(app.packageName)
+            val activeIconPack = repository.customAppIconPack(app.packageName)
+                ?: if (hasCustomIcon) null else featureStore.selectedIconPack
+            AppIconPickerDialog(
+                app = app,
+                activeIconPackPackage = activeIconPack,
+                hasCustomIcon = hasCustomIcon,
+                onChooseImage = { chooseCustomIconImage(app) },
+                onSelectIconPack = { packPackage ->
+                    repository.setCustomAppIconPack(app.packageName, packPackage)
+                    selectedAppForIcon = null
+                    refreshApps()
+                    Toast.makeText(context, "Icon pack applied to Home and app drawer.", Toast.LENGTH_SHORT).show()
+                },
+                onReset = {
+                    repository.clearCustomAppIcon(app.packageName)
+                    selectedAppForIcon = null
+                    refreshApps()
+                    Toast.makeText(context, "Using the global or system icon again.", Toast.LENGTH_SHORT).show()
+                },
+                onDismiss = { selectedAppForIcon = null }
             )
         }
 

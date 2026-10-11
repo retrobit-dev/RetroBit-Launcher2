@@ -15,8 +15,12 @@ class IconPackManager(private val context: Context) {
 
     fun installedPacks(): List<InstalledIconPack> {
         val packageManager = context.packageManager
-        val intent = Intent(ACTION_ADW_THEMES)
-        return packageManager.queryIntentActivities(intent, PackageManager.MATCH_ALL)
+        return SUPPORTED_THEME_ACTIONS
+            .flatMap { action ->
+                runCatching {
+                    packageManager.queryIntentActivities(Intent(action), PackageManager.MATCH_ALL)
+                }.getOrDefault(emptyList())
+            }
             .mapNotNull { resolveInfo ->
                 val activityInfo = resolveInfo.activityInfo ?: return@mapNotNull null
                 InstalledIconPack(
@@ -78,6 +82,13 @@ class IconPackManager(private val context: Context) {
     }
 
     companion object {
-        private const val ACTION_ADW_THEMES = "org.adw.launcher.THEMES"
+        private val SUPPORTED_THEME_ACTIONS = listOf(
+            "org.adw.launcher.THEMES",
+            "com.anddoes.launcher.THEME",
+            "com.teslacoilsw.launcher.THEME",
+            "com.novalauncher.THEME",
+            "com.gau.go.launcherex.theme",
+            "com.dlto.atom.launcher.THEME"
+        )
     }
 }

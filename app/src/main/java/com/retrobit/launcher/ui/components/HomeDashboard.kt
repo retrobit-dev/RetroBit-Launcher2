@@ -54,6 +54,7 @@ fun HomeDashboard(
     isEditing: Boolean,
     onToggleEdit: () -> Unit,
     onLaunchApp: (AppModel) -> Unit,
+    onChangeIcon: (AppModel) -> Unit,
     onAddApp: () -> Unit,
     onAddWidget: () -> Unit,
     onRemoveShortcut: (String) -> Unit,
@@ -104,7 +105,7 @@ fun HomeDashboard(
                     Text("LAYOUT // choose each section's direction", color = colors.inkMuted, fontSize = 7.sp, fontWeight = FontWeight.Bold)
                     HomeLayoutSelector("APP ICONS", shortcutLayout, onShortcutLayoutChange)
                     HomeLayoutSelector("WIDGETS", widgetLayout, onWidgetLayoutChange)
-                    Text("MANUAL mode: use ↑ ↓ to arrange; × removes an item.", color = colors.inkMuted, fontSize = 7.sp)
+                    Text("MANUAL: ↑ ↓ arrange; × removes. Hold an app icon to customize it.", color = colors.inkMuted, fontSize = 7.sp)
                 }
             }
         }
@@ -132,6 +133,7 @@ fun HomeDashboard(
                                 isEditing = isEditing,
                                 modifier = Modifier.width(76.dp),
                                 onLaunch = { onLaunchApp(app) },
+                                onChangeIcon = { onChangeIcon(app) },
                                 onRemove = { onRemoveShortcut(app.packageName) },
                                 onMove = { offset -> onMoveShortcut(app.packageName, offset) }
                             )
@@ -148,6 +150,7 @@ fun HomeDashboard(
                         isEditing = isEditing,
                         modifier = Modifier.fillMaxWidth(),
                         onLaunch = { onLaunchApp(app) },
+                        onChangeIcon = { onChangeIcon(app) },
                         onRemove = { onRemoveShortcut(app.packageName) },
                         onMove = { offset -> onMoveShortcut(app.packageName, offset) }
                     )
@@ -164,6 +167,7 @@ fun HomeDashboard(
                                 isEditing = isEditing,
                                 modifier = Modifier.weight(1f),
                                 onLaunch = { onLaunchApp(app) },
+                                onChangeIcon = { onChangeIcon(app) },
                                 onRemove = { onRemoveShortcut(app.packageName) },
                                 onMove = { offset -> onMoveShortcut(app.packageName, offset) }
                             )
@@ -276,6 +280,7 @@ private fun HomeShortcutTile(
     isEditing: Boolean,
     modifier: Modifier,
     onLaunch: () -> Unit,
+    onChangeIcon: () -> Unit,
     onRemove: () -> Unit,
     onMove: (Int) -> Unit
 ) {
@@ -287,7 +292,7 @@ private fun HomeShortcutTile(
             Modifier.size(iconSize)
                 .background(colors.surface)
                 .border(1.dp, colors.border)
-                .clickable(onClick = onLaunch),
+                .combinedClickable(onClick = onLaunch, onLongClick = onChangeIcon),
             contentAlignment = Alignment.Center
         ) {
             if (bitmap != null) {
@@ -299,6 +304,7 @@ private fun HomeShortcutTile(
     }
     val controls = @Composable {
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (isEditing) MiniHomeControl("◈") { onChangeIcon() }
             if (isEditing && layout == HomeContentLayout.MANUAL) {
                 MiniHomeControl("↑") { onMove(-1) }
                 MiniHomeControl("↓") { onMove(1) }

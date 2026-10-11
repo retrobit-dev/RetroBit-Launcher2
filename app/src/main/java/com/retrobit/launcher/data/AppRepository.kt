@@ -5,7 +5,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.LauncherApps
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.net.Uri
+import android.os.Build
 import android.os.Process
 import android.os.UserHandle
 import android.provider.Settings
@@ -25,6 +30,9 @@ class AppRepository(private val context: Context) {
         private const val PREF_HIDDEN = "hidden_apps"
         private const val PREF_LABELS = "custom_labels"
         private const val PREF_DETOX_RESTRICTED = "detox_restricted_apps"
+        private const val PREF_APP_ICON_OVERRIDES = "custom_app_icon_overrides"
+        private const val TYPE_IMAGE = "image"
+        private const val TYPE_ICON_PACK = "icon_pack"
     }
 
     // 1. Favorites
@@ -107,6 +115,101 @@ class AppRepository(private val context: Context) {
         prefs.edit().putString(PREF_LABELS, json).apply()
     }
 
+    private data class AppIconOverride(val type: String, val value: String)
+
+    fun setCustomAppIconImage(packageName: String, uri: Uri) {
+        saveAppIconOverride(packageName, AppIconOverride(TYPE_IMAGE, uri.toString()))
+    }
+
+    fun setCustomAppIconPack(packageName: String, iconPackPackage: String) {
+        saveAppIconOverride(packageName, AppIconOverride(TYPE_ICON_PACK, iconPackPackage))
+    }
+
+    fun clearCustomAppIcon(packageName: String) {
+        saveAppIconOverride(packageName, null)
+    }
+
+    fun customAppIconPack(packageName: String): String? =
+        readAppIconOverrides()[packageName]?.takeIf { it.type == TYPE_ICON_PACK }?.value
+
+    fun hasCustomAppIcon(packageName: String): Boolean = packageName in readAppIconOverrides()
+
+    private fun saveAppIconOverride(packageName: String, iconOverride: AppIconOverride?) {
+        if (packageName.isBlank()) return
+        val json = runCatching { JSONObject(prefs.getString(PREF_APP_ICON_OVERRIDES, "{}") ?: "{}") }
+            .getOrDefault(JSONObject())
+        val old = json.optJSONObject(packageName)
+        val oldUri = old?.takeIf { it.optString("type") == TYPE_IMAGE }?.optString("value")
+        if (iconOverride == null) {
+            json.remove(packageName)
+        } else {
+            json.put(packageName, JSONObject().put("type", iconOverride.type).put("value", iconOverride.value))
+        }
+        prefs.edit().putString(PREF_APP_ICON_OVERRIDES, json.toString()).apply()
+        val uriStillUsed = oldUri != null && readAppIconOverrides().values.any {
+            it.type == TYPE_IMAGE && it.value == oldUri
+        }
+        if (!oldUri.isNullOrBlank() && oldUri != iconOverride?.value && !uriStillUsed) {
+            runCatching {
+                context.contentResolver.releasePersistableUriPermission(
+                    Uri.parse(oldUri),
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+        }
+    }
+
+    private fun readAppIconOverrides(): Map<String, AppIconOverride> = try {
+        val json = JSONObject(prefs.getString(PREF_APP_ICON_OVERRIDES, "{}") ?: "{}")
+        buildMap {
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val item = json.optJSONObject(key) ?: continue
+                val type = item.optString("type")
+                val value = item.optString("value")
+                if (type in setOf(TYPE_IMAGE, TYPE_ICON_PACK) && value.isNotBlank()) {
+                    put(key, AppIconOverride(type, value))
+                }
+            }
+        }
+    } catch (_: Exception) {
+        emptyMap()
+    }
+
+    private fun loadImageIcon(uriText: String): Drawable? {
+        return try {
+            val uri = Uri.parse(uriText)
+            val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val source = ImageDecoder.createSource(context.contentResolver, uri)
+                ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                    decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE)
+                    val largestSide = maxOf(info.size.width, info.size.height).coerceAtLeast(1)
+                    val scale = minOf(1f, 192f / largestSide)
+                    decoder.setTargetSize(
+                        (info.size.width * scale).toInt().coerceAtLeast(1),
+                        (info.size.height * scale).toInt().coerceAtLeast(1)
+                    )
+                }
+            } else {
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                    null
+                } else {
+                    val largestSide = maxOf(bounds.outWidth, bounds.outHeight)
+                    var sampleSize = 1
+                    while (largestSide / sampleSize > 192) sampleSize *= 2
+                    val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+                }
+            }
+            bitmap?.let { BitmapDrawable(context.resources, it) }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     // 4. Query Installed Apps
     suspend fun loadInstalledApps(): List<AppModel> = withContext(Dispatchers.IO) {
         val userHandle: UserHandle = Process.myUserHandle()
@@ -118,12 +221,21 @@ class AppRepository(private val context: Context) {
         val customNames = getCustomLabels()
         val detoxApps = getDetoxRestrictedPackageNames()
         val selectedIconPack = prefs.getString("feature_icon_pack", null)
+        val customIconOverrides = readAppIconOverrides()
 
         activities.map { info ->
             val pkg = info.applicationInfo.packageName
             val compName = info.name
             val original = info.label.toString()
             val custom = customNames[pkg]
+            val customIcon = customIconOverrides[pkg]?.let { iconOverride ->
+                when (iconOverride.type) {
+                    TYPE_IMAGE -> loadImageIcon(iconOverride.value)
+                    TYPE_ICON_PACK -> iconPackManager.iconFor(pkg, compName, iconOverride.value)
+                    else -> null
+                }
+            }
+            val defaultIcon = iconPackManager.iconFor(pkg, compName, selectedIconPack) ?: info.getBadgedIcon(0)
 
             val catTag = when {
                 pkg.contains("message") || pkg.contains("whatsapp") || pkg.contains("telegram") || pkg.contains("signal") -> "COMM"
@@ -142,7 +254,7 @@ class AppRepository(private val context: Context) {
                 componentName = compName,
                 originalLabel = original,
                 customLabel = custom,
-                icon = iconPackManager.iconFor(pkg, compName, selectedIconPack) ?: info.getBadgedIcon(0),
+                icon = customIcon ?: defaultIcon,
                 isFavorite = favorites.contains(pkg),
                 isHidden = hidden.contains(pkg),
                 isDetoxRestricted = detoxApps.contains(pkg),

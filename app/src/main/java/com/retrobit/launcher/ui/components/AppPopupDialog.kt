@@ -23,6 +23,7 @@ fun AppPopupDialog(
     isPinnedToHome: Boolean,
     onToggleHomeShortcut: () -> Unit,
     onRename: () -> Unit,
+    onChangeIcon: () -> Unit,
     onToggleFavorite: () -> Unit,
     onToggleHide: () -> Unit,
     onToggleDetox: () -> Unit,
@@ -96,6 +97,8 @@ fun AppPopupDialog(
             )
             Spacer(Modifier.height(4.dp))
             CyberActionButton(label = "✎ RENAME / CUSTOM ALIAS", onClick = onRename)
+            Spacer(Modifier.height(4.dp))
+            CyberActionButton(label = "◈ CHANGE APP ICON // IMAGE OR PACK", onClick = onChangeIcon)
             Spacer(Modifier.height(4.dp))
             CyberActionButton(
                 label = if (app.isDetoxRestricted) "⏳ REMOVE MINDFUL PAUSE" else "⏳ ADD 5s MINDFUL PAUSE (DETOX)",
