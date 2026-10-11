@@ -110,6 +110,7 @@ fun HomeDashboard(
         homeShortcutPackages.mapNotNull { appByPackage[it] }
     }
     val manualShortcutRows = remember(shortcuts) { shortcuts.chunked(4) }
+    val shortcutLongPressActions = remember { mutableStateMapOf<String, Boolean>() }
     val dragController = remember { HomeCardDragController() }
     var cardEditor by remember { mutableStateOf<HomeCardEditor?>(null) }
     val handleCardDrop: (HomeCardDrop) -> Unit = { drop ->
@@ -152,7 +153,7 @@ fun HomeDashboard(
                     Column(Modifier.weight(1f)) {
                         Text("HOME // PERSONAL DECK", color = colors.inkPrimary, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
                         Text(
-                            if (isEditing) "Edit mode // hold blank space to close; hold a card for move, size and delete options." else "Swipe right for widgets · hold blank space to edit · hold a card to manage it.",
+                            if (isEditing) "Edit mode // hold and release blank space to close; hold and release a card to move, resize or delete it." else "Swipe right for widgets · hold and release blank space to edit · hold and release a card to manage it.",
                             color = colors.inkSecondary,
                             fontSize = 8.sp
                         )
@@ -183,7 +184,7 @@ fun HomeDashboard(
                     )
                     HomeAction("WIDGET SETTINGS  //  STACK · SWIPE · SIZE", Modifier.fillMaxWidth(), onOpenWidgetSettings)
                     Text("Manage widget layout, swipe behavior, order and size in one place.", color = colors.inkMuted, fontSize = 7.sp)
-                    Text("Hold a card to move, resize, change its icon, or delete it; drag also reorders. Manual mode keeps ↑↓ arrows.", color = colors.inkMuted, fontSize = 7.sp)
+                    Text("Hold then release a card to move, resize or delete it; hold a shortcut icon to change it. Drag a held card to reorder or remove; Manual mode keeps ↑↓ arrows.", color = colors.inkMuted, fontSize = 7.sp)
                 }
             }
         }
@@ -212,7 +213,7 @@ fun HomeDashboard(
 
         if (widgetIds.isEmpty()) {
             item(key = "home-widgets-empty") {
-                HomeEmptyState("No widgets yet. Hold a blank area, then choose + WIDGET to add one.")
+                HomeEmptyState("No widgets yet. Hold and release a blank area, then choose + WIDGET to add one.")
             }
         } else when (widgetLayout) {
             HomeWidgetLayout.HORIZONTAL -> {
@@ -234,7 +235,7 @@ fun HomeDashboard(
                                         shortcutLayout = shortcutLayout,
                                         widgetLayout = widgetLayout,
                                         onDrop = currentOnCardDrop,
-                                        onLongPressWithoutDrag = { cardEditor = HomeCardEditor.Widget(widgetId) }
+                                        onHoldReleaseWithoutDrag = { cardEditor = HomeCardEditor.Widget(widgetId) }
                                     ),
                                     fillAvailableWidth = false,
                                     contentAlignment = Alignment.CenterStart
@@ -260,7 +261,7 @@ fun HomeDashboard(
                                 shortcutLayout = shortcutLayout,
                                 widgetLayout = widgetLayout,
                                 onDrop = currentOnCardDrop,
-                                onLongPressWithoutDrag = { cardEditor = HomeCardEditor.Widget(widgetId) }
+                                onHoldReleaseWithoutDrag = { cardEditor = HomeCardEditor.Widget(widgetId) }
                             ),
                             fillAvailableWidth = true,
                             contentAlignment = Alignment.CenterStart
@@ -293,7 +294,7 @@ fun HomeDashboard(
                                     shortcutLayout = shortcutLayout,
                                     widgetLayout = widgetLayout,
                                     onDrop = currentOnCardDrop,
-                                    onLongPressWithoutDrag = { cardEditor = HomeCardEditor.Widget(widgetId) }
+                                    onHoldReleaseWithoutDrag = { cardEditor = HomeCardEditor.Widget(widgetId) }
                                 )
                             ) {
                                 HomeWidgetFrame(
@@ -344,7 +345,7 @@ fun HomeDashboard(
 
         if (shortcuts.isEmpty()) {
             item(key = "home-shortcuts-empty") {
-                HomeEmptyState("No pinned apps. Hold a blank area to add or arrange apps.")
+                HomeEmptyState("No pinned apps. Hold and release a blank area to add or arrange apps.")
             }
         } else when (shortcutLayout) {
             HomeContentLayout.HORIZONTAL -> {
@@ -358,7 +359,9 @@ fun HomeDashboard(
                                 layout = HomeContentLayout.HORIZONTAL,
                                 isEditing = isEditing,
                                 modifier = (shortcutSizes[app.packageName]?.let {
-                                    Modifier.width(it.widthDp.dp).height(it.heightDp.coerceAtLeast(minimumHomeShortcutHeight(shortcutLayout, iconSizeDp)).dp)
+                                    Modifier.width(it.widthDp.dp).height(
+                                        it.heightDp.coerceAtLeast(minimumHomeShortcutHeight(shortcutLayout, iconSizeDp)).dp
+                                    )
                                 } ?: Modifier.width(76.dp)).homeCardDragTarget(
                                     controller = dragController,
                                     cardKey = shortcutCardKey(app.packageName),
@@ -366,10 +369,20 @@ fun HomeDashboard(
                                     shortcutLayout = shortcutLayout,
                                     widgetLayout = widgetLayout,
                                     onDrop = currentOnCardDrop,
-                                    onLongPressWithoutDrag = { cardEditor = HomeCardEditor.Shortcut(app) }
+                                    onHoldReleaseWithoutDrag = {
+                                        if (shortcutLongPressActions[app.packageName] != true) {
+                                            cardEditor = HomeCardEditor.Shortcut(app)
+                                        }
+                                    },
+                                    shouldSuppressHoldRelease = { shortcutLongPressActions[app.packageName] == true },
+                                    onGestureStart = { shortcutLongPressActions.remove(app.packageName) }
                                 ),
                                 onLaunch = { onLaunchApp(app) },
                                 onChangeIcon = { onChangeIcon(app) },
+                                onIconLongPress = {
+                                    shortcutLongPressActions[app.packageName] = true
+                                    onChangeIcon(app)
+                                },
                                 onRemove = { onRemoveShortcut(app.packageName) },
                                 onMove = { offset -> onMoveShortcut(app.packageName, offset) }
                             )
@@ -386,7 +399,9 @@ fun HomeDashboard(
                         layout = HomeContentLayout.VERTICAL,
                         isEditing = isEditing,
                         modifier = (shortcutSizes[app.packageName]?.let {
-                            Modifier.fillMaxWidth(it.widthPercent / 100f).height(it.heightDp.coerceAtLeast(minimumHomeShortcutHeight(shortcutLayout, iconSizeDp)).dp)
+                            Modifier.fillMaxWidth(it.widthPercent / 100f).height(
+                                it.heightDp.coerceAtLeast(minimumHomeShortcutHeight(shortcutLayout, iconSizeDp)).dp
+                            )
                         } ?: Modifier.fillMaxWidth()).homeCardDragTarget(
                             controller = dragController,
                             cardKey = shortcutCardKey(app.packageName),
@@ -394,10 +409,20 @@ fun HomeDashboard(
                             shortcutLayout = shortcutLayout,
                             widgetLayout = widgetLayout,
                             onDrop = currentOnCardDrop,
-                            onLongPressWithoutDrag = { cardEditor = HomeCardEditor.Shortcut(app) }
+                            onHoldReleaseWithoutDrag = {
+                                if (shortcutLongPressActions[app.packageName] != true) {
+                                    cardEditor = HomeCardEditor.Shortcut(app)
+                                }
+                            },
+                            shouldSuppressHoldRelease = { shortcutLongPressActions[app.packageName] == true },
+                            onGestureStart = { shortcutLongPressActions.remove(app.packageName) }
                         ),
                         onLaunch = { onLaunchApp(app) },
                         onChangeIcon = { onChangeIcon(app) },
+                        onIconLongPress = {
+                            shortcutLongPressActions[app.packageName] = true
+                            onChangeIcon(app)
+                        },
                         onRemove = { onRemoveShortcut(app.packageName) },
                         onMove = { offset -> onMoveShortcut(app.packageName, offset) }
                     )
@@ -413,7 +438,11 @@ fun HomeDashboard(
                             } else {
                                 Modifier.weight(1f, fill = false)
                                     .fillMaxWidth(shortcutSize.widthPercent / 100f)
-                                    .height(shortcutSize.heightDp.coerceAtLeast(minimumHomeShortcutHeight(shortcutLayout, iconSizeDp)).dp)
+                                    .height(
+                                        shortcutSize.heightDp.coerceAtLeast(
+                                            minimumHomeShortcutHeight(shortcutLayout, iconSizeDp)
+                                        ).dp
+                                    )
                             }
                             HomeShortcutTile(
                                 app = app,
@@ -428,10 +457,20 @@ fun HomeDashboard(
                                     shortcutLayout = shortcutLayout,
                                     widgetLayout = widgetLayout,
                                     onDrop = currentOnCardDrop,
-                                    onLongPressWithoutDrag = { cardEditor = HomeCardEditor.Shortcut(app) }
+                                    onHoldReleaseWithoutDrag = {
+                                        if (shortcutLongPressActions[app.packageName] != true) {
+                                            cardEditor = HomeCardEditor.Shortcut(app)
+                                        }
+                                    },
+                                    shouldSuppressHoldRelease = { shortcutLongPressActions[app.packageName] == true },
+                                    onGestureStart = { shortcutLongPressActions.remove(app.packageName) }
                                 ),
                                 onLaunch = { onLaunchApp(app) },
                                 onChangeIcon = { onChangeIcon(app) },
+                                onIconLongPress = {
+                                    shortcutLongPressActions[app.packageName] = true
+                                    onChangeIcon(app)
+                                },
                                 onRemove = { onRemoveShortcut(app.packageName) },
                                 onMove = { offset -> onMoveShortcut(app.packageName, offset) }
                             )
@@ -444,7 +483,7 @@ fun HomeDashboard(
 
         item(key = "home-scroll-hint") {
             Text(
-                "SCROLL THE DECK ↑↓ // swipe right for WIDGET PAGE · hold cards to edit · drag to sort/remove",
+                "SCROLL THE DECK ↑↓ // swipe right for WIDGET PAGE · hold then release cards to edit · drag to sort/remove",
                 color = colors.inkMuted,
                 fontSize = 7.sp,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
@@ -682,12 +721,16 @@ private fun Modifier.homeCardDragTarget(
     shortcutLayout: HomeContentLayout,
     widgetLayout: HomeWidgetLayout,
     onDrop: (HomeCardDrop) -> Unit,
-    onLongPressWithoutDrag: () -> Unit = {}
+    onHoldReleaseWithoutDrag: () -> Unit = {},
+    shouldSuppressHoldRelease: () -> Boolean = { false },
+    onGestureStart: () -> Unit = {}
 ): Modifier {
     val colors = LocalRetroBitColors.current
     val coordinates = remember(cardKey) { mutableStateOf<LayoutCoordinates?>(null) }
     val latestOnDrop by rememberUpdatedState(onDrop)
-    val latestOnLongPress by rememberUpdatedState(onLongPressWithoutDrag)
+    val latestOnHoldRelease by rememberUpdatedState(onHoldReleaseWithoutDrag)
+    val latestShouldSuppressHoldRelease by rememberUpdatedState(shouldSuppressHoldRelease)
+    val latestOnGestureStart by rememberUpdatedState(onGestureStart)
     val isDragging = controller.activeCard?.cardKey == cardKey
     val isDropTarget = controller.activeDropTargetKey == cardKey
 
@@ -706,31 +749,21 @@ private fun Modifier.homeCardDragTarget(
         .pointerInput(controller, cardKey, cardKind, shortcutLayout, widgetLayout) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                latestOnGestureStart()
+
                 var current = down
                 var longPressReached = false
-                var editMenuShown = false
                 var movedBeforeLongPress = false
                 var dragging = false
                 var cancelled = false
                 val longPressDeadline = down.uptimeMillis + viewConfiguration.longPressTimeoutMillis
-                val editMenuDeadline = longPressDeadline + 250L
 
                 while (current.pressed) {
-                    if (
-                        longPressReached && !editMenuShown && !movedBeforeLongPress && !dragging &&
-                        current.uptimeMillis >= editMenuDeadline
-                    ) {
-                        editMenuShown = true
-                        latestOnLongPress()
+                    val remaining = if (!longPressReached && !movedBeforeLongPress) {
+                        longPressDeadline - current.uptimeMillis
+                    } else {
+                        null
                     }
-                    val nextDeadline = when {
-                        !longPressReached && !movedBeforeLongPress -> longPressDeadline
-                        longPressReached && !editMenuShown && !movedBeforeLongPress && !dragging -> editMenuDeadline
-                        else -> null
-                    }
-                    val clockAtLeast = if (longPressReached) longPressDeadline else down.uptimeMillis
-                    val currentClock = maxOf(current.uptimeMillis, clockAtLeast)
-                    val remaining = nextDeadline?.minus(currentClock)
                     val event = if (remaining != null && remaining > 0L) {
                         withTimeoutOrNull(remaining) {
                             awaitPointerEvent(PointerEventPass.Initial)
@@ -740,12 +773,7 @@ private fun Modifier.homeCardDragTarget(
                     }
 
                     if (event == null) {
-                        if (!longPressReached) {
-                            longPressReached = true
-                        } else if (!editMenuShown && !movedBeforeLongPress && !dragging) {
-                            editMenuShown = true
-                            latestOnLongPress()
-                        }
+                        if (!longPressReached) longPressReached = true
                         continue
                     }
                     if (event.changes.count { it.pressed } > 1) {
@@ -759,7 +787,14 @@ private fun Modifier.homeCardDragTarget(
                         movedBeforeLongPress = true
                     }
                     if (
+                        !longPressReached && !movedBeforeLongPress &&
+                        change.uptimeMillis >= longPressDeadline
+                    ) {
+                        longPressReached = true
+                    }
+                    if (
                         longPressReached && !movedBeforeLongPress && !dragging &&
+                        !latestShouldSuppressHoldRelease() &&
                         distanceFromDown > viewConfiguration.touchSlop
                     ) {
                         val rootPosition = coordinates.value?.localToRoot(change.position)
@@ -768,11 +803,26 @@ private fun Modifier.homeCardDragTarget(
                             dragging = true
                         }
                     }
-                    if (dragging) {
-                        coordinates.value?.localToRoot(change.position)?.let(controller::updatePointer)
-                        change.consume()
-                    } else if (longPressReached && !movedBeforeLongPress && !change.pressed) {
-                        change.consume()
+
+                    when {
+                        dragging -> {
+                            coordinates.value?.localToRoot(change.position)?.let(controller::updatePointer)
+                            change.consume()
+                        }
+                        longPressReached && !movedBeforeLongPress && !change.pressed -> {
+                            // Claim the release before the parent Home gesture detector sees it.
+                            // A shortcut icon's nested hold handler gets the same event and can
+                            // claim it for icon editing before this callback is finalized.
+                            change.consume()
+                            val finalEvent = awaitPointerEvent(PointerEventPass.Final)
+                            val finalChange = finalEvent.changes.firstOrNull { it.id == down.id }
+                            if (!cancelled && !latestShouldSuppressHoldRelease()) {
+                                latestOnHoldRelease()
+                            }
+                            current = finalChange ?: change
+                            continue
+                        }
+                        latestShouldSuppressHoldRelease() -> change.consume()
                     }
                     current = change
                 }
@@ -781,8 +831,6 @@ private fun Modifier.homeCardDragTarget(
                     controller.finish(shortcutLayout, widgetLayout)?.let(latestOnDrop)
                 } else if (cancelled) {
                     controller.cancel()
-                } else if (longPressReached && !movedBeforeLongPress && !editMenuShown) {
-                    latestOnLongPress()
                 }
             }
         }
@@ -1049,6 +1097,72 @@ private fun defaultHomeWidgetSize(providerInfo: AppWidgetProviderInfo?): HomeWid
     HomeWidgetSize(widthPercent = 100, heightDp = minimumWidgetBodyHeight(providerInfo))
 
 @Composable
+private fun Modifier.homeShortcutIconHold(
+    appKey: String,
+    onHold: () -> Unit
+): Modifier {
+    val latestOnHold by rememberUpdatedState(onHold)
+    return pointerInput(appKey) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            val iconHoldDeadline = down.uptimeMillis + viewConfiguration.longPressTimeoutMillis + 250L
+            var current = down
+            var moved = false
+            var actionTriggered = false
+
+            while (current.pressed) {
+                if (!moved && !actionTriggered && current.uptimeMillis >= iconHoldDeadline) {
+                    actionTriggered = true
+                    down.consume()
+                    latestOnHold()
+                    continue
+                }
+                val remaining = if (!moved && !actionTriggered) {
+                    iconHoldDeadline - current.uptimeMillis
+                } else {
+                    null
+                }
+                val event = if (remaining != null && remaining > 0L) {
+                    withTimeoutOrNull(remaining) {
+                        awaitPointerEvent(PointerEventPass.Initial)
+                    }
+                } else {
+                    awaitPointerEvent(PointerEventPass.Initial)
+                }
+
+                if (event == null) {
+                    if (!moved && !actionTriggered) {
+                        actionTriggered = true
+                        down.consume()
+                        latestOnHold()
+                    }
+                    continue
+                }
+                if (event.changes.count { it.pressed } > 1) break
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) {
+                    moved = true
+                    if (actionTriggered) change.consume()
+                    break
+                }
+                if (!change.pressed) {
+                    val heldFor = change.uptimeMillis - down.uptimeMillis
+                    if (!moved && !actionTriggered && heldFor >= viewConfiguration.longPressTimeoutMillis) {
+                        actionTriggered = true
+                        change.consume()
+                        latestOnHold()
+                    } else if (actionTriggered) {
+                        change.consume()
+                    }
+                    break
+                }
+                current = change
+            }
+        }
+    }
+}
+
+@Composable
 private fun HomeShortcutTile(
     app: AppModel,
     iconSizeDp: Float,
@@ -1058,6 +1172,7 @@ private fun HomeShortcutTile(
     modifier: Modifier,
     onLaunch: () -> Unit,
     onChangeIcon: () -> Unit,
+    onIconLongPress: () -> Unit,
     onRemove: () -> Unit,
     onMove: (Int) -> Unit
 ) {
@@ -1069,6 +1184,7 @@ private fun HomeShortcutTile(
             Modifier.size(iconSize)
                 .background(colors.surface)
                 .border(1.dp, colors.border)
+                .homeShortcutIconHold(app.packageName, onIconLongPress)
                 .clickable(onClick = onLaunch),
             contentAlignment = Alignment.Center
         ) {

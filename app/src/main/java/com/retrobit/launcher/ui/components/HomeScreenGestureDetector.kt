@@ -14,7 +14,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Observes launcher gestures across the Home and Widget pages without consuming pointer changes.
- * Child controls and horizontal widget carousels keep their own scroll/tap gestures.
+ * Long-press callbacks wait for release so cards and child controls can claim their own gestures;
+ * horizontal widget carousels keep their scroll/tap gestures.
  */
 @Composable
 fun Modifier.homeScreenGestureDetector(
@@ -65,8 +66,9 @@ fun Modifier.homeScreenGestureDetector(
                 }
                 if (event == null) {
                     if (!moved && !multiTouch && !childConsumedTap) {
+                        // Defer the action until release so a child card can claim the
+                        // long press and open its own editor instead of toggling Home edit mode.
                         lastTapTime = 0L
-                        currentOnLongPress()
                         longPressTriggered = true
                     }
                     continue
@@ -101,7 +103,7 @@ fun Modifier.homeScreenGestureDetector(
                 when {
                     duration >= viewConfiguration.longPressTimeoutMillis -> {
                         lastTapTime = 0L
-                        if (!longPressTriggered) currentOnLongPress()
+                        currentOnLongPress()
                     }
                     doubleTapEnabled &&
                         lastTapTime > 0L &&
