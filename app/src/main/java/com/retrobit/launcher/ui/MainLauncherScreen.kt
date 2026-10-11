@@ -572,6 +572,10 @@ fun MainLauncherScreen(
                 )
             }
 
+            if (isHomeDashboardOpen && !isWidgetPageOpen) {
+                TimeProgressWidget(Modifier.padding(horizontal = 14.dp, vertical = 4.dp))
+            }
+
             if (!isWidgetPageOpen) {
                 // 4. Command / Search Input Bar with Inline Calculator
                 Row(
@@ -828,31 +832,34 @@ fun MainLauncherScreen(
                 }
             }
 
-            // 6. Bottom chassis toolbar: uniform-height, icon-only controls.
+            // 6. Bottom toolbar: compact named actions on the left, settings on the right.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
                     .background(colors.surface)
                     .border(0.5.dp, colors.border)
-                    .padding(horizontal = 14.dp, vertical = 5.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(horizontal = 12.dp, vertical = 5.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 DeckIconButton(
                     icon = Icons.Filled.Refresh,
+                    label = "REFRESH",
                     contentDescription = "Refresh launcher",
                     modifier = Modifier.weight(1f),
                     onClick = { triggerRefreshCycle() }
                 )
                 DeckIconButton(
                     icon = Icons.Filled.Code,
+                    label = "TERMINAL",
                     contentDescription = "Open terminal",
                     modifier = Modifier.weight(1f),
                     onClick = { isTerminalOpen = true }
                 )
                 DeckIconButton(
                     icon = if (isAutoHideEnabled) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                    label = "APPS",
                     contentDescription = if (isAutoHideEnabled) "Disable stealth app list" else "Enable stealth app list",
                     modifier = Modifier.weight(1f)
                 ) {
@@ -863,8 +870,9 @@ fun MainLauncherScreen(
                 }
                 DeckIconButton(
                     icon = Icons.Filled.Settings,
+                    label = "SETTINGS",
                     contentDescription = "Open settings",
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(84.dp),
                     onClick = { isSettingsOpen = true }
                 )
             }
@@ -1124,10 +1132,11 @@ fun MainLauncherScreen(
     }
 }
 
-/** Uniform-height icon-only control for the bottom chassis toolbar. */
+/** Uniform-height, named toolbar action with a font-sized icon on the left. */
 @Composable
 fun DeckIconButton(
     icon: ImageVector,
+    label: String,
     contentDescription: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
@@ -1141,12 +1150,25 @@ fun DeckIconButton(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = colors.inkPrimary,
-            modifier = Modifier.size(20.dp)
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = colors.inkPrimary,
+                modifier = Modifier.size(9.dp)
+            )
+            Text(
+                text = label,
+                color = colors.inkPrimary,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+        }
     }
 }
 

@@ -189,10 +189,6 @@ fun HomeDashboard(
             }
         }
 
-        item(key = "home-time-progress") {
-            TimeProgressWidget()
-        }
-
         item(key = "home-widgets-title") {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 HomeSectionLabel("WIDGETS // ${widgetLayout.label}")
