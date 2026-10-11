@@ -412,6 +412,7 @@ private fun HomeWidgetFrame(
         HomeWidgetCard(
             widgetId = widgetId,
             widgetHost = widgetHost,
+            manager = manager,
             providerInfo = providerInfo,
             widgetSize = widgetSize,
             widgetContentWidthDp = widgetContentWidthDp,
@@ -506,6 +507,7 @@ private fun HomeShortcutTile(
 private fun HomeWidgetCard(
     widgetId: Int,
     widgetHost: AppWidgetHost,
+    manager: AppWidgetManager,
     providerInfo: AppWidgetProviderInfo?,
     widgetSize: HomeWidgetSize,
     widgetContentWidthDp: Int,
@@ -539,7 +541,7 @@ private fun HomeWidgetCard(
                     )
                 }
             }
-            runCatching { widgetHost.updateAppWidgetOptions(widgetId, options) }
+            runCatching { manager.updateAppWidgetOptions(widgetId, options) }
         }
     }
 
