@@ -84,6 +84,7 @@ fun MainLauncherScreen(
     var appDrawerAutoHideDelaySeconds by remember { mutableIntStateOf(featureStore.appDrawerAutoHideDelaySeconds) }
     var homeSwipeThresholdDp by remember { mutableFloatStateOf(featureStore.homeSwipeThresholdDp) }
     var isHomeDashboardOpen by remember { mutableStateOf(true) }
+    var isWidgetPageOpen by remember { mutableStateOf(false) }
     var keepDrawerOpen by remember { mutableStateOf(false) }
     var isHomeEditing by remember { mutableStateOf(false) }
     var isHomeShortcutPickerOpen by remember { mutableStateOf(false) }
@@ -93,6 +94,7 @@ fun MainLauncherScreen(
     var homeWidgetSizes by remember { mutableStateOf(featureStore.getHomeWidgetSizes()) }
     var homeShortcutLayout by remember { mutableStateOf(featureStore.homeShortcutLayout) }
     var homeWidgetLayout by remember { mutableStateOf(featureStore.homeWidgetLayout) }
+    var widgetPageModules by remember { mutableStateOf(featureStore.getWidgetPageModules()) }
 
     // ==========================================================================
     // STEALTH AUTO-HIDE ENGINE (Daftar aplikasi otomatis hilang & muncul saat disentuh)
@@ -242,6 +244,8 @@ fun MainLauncherScreen(
     }
 
     fun openAppDrawer() {
+        isWidgetPageOpen = false
+        isHomeEditing = false
         isHomeDashboardOpen = false
         keepDrawerOpen = true
         isAppListRevealed = true
@@ -251,6 +255,8 @@ fun MainLauncherScreen(
     }
 
     fun returnHome() {
+        isWidgetPageOpen = false
+        isHomeEditing = false
         isHomeDashboardOpen = true
         keepDrawerOpen = false
         isAppListRevealed = false
@@ -276,8 +282,15 @@ fun MainLauncherScreen(
         }
     }
 
-    BackHandler(enabled = !isHomeDashboardOpen) {
-        if (searchQuery.isNotEmpty()) searchQuery = "" else returnHome()
+    BackHandler(enabled = !isHomeDashboardOpen || isWidgetPageOpen) {
+        if (isWidgetPageOpen) {
+            isWidgetPageOpen = false
+            isHomeEditing = false
+        } else if (searchQuery.isNotEmpty()) {
+            searchQuery = ""
+        } else {
+            returnHome()
+        }
     }
 
     val lifecycleOwner = context as? LifecycleOwner
@@ -493,8 +506,20 @@ fun MainLauncherScreen(
                     if (featureStore.doubleTapToLockEnabled) requestDeviceLock()
                 },
                 onLongPress = { isHomeEditing = !isHomeEditing },
-                onSwipeUp = { performHomeGesture(featureStore.homeSwipeUpAction) },
-                onSwipeDown = { performHomeGesture(featureStore.homeSwipeDownAction) }
+                onSwipeUp = { if (!isWidgetPageOpen) performHomeGesture(featureStore.homeSwipeUpAction) },
+                onSwipeDown = { if (!isWidgetPageOpen) performHomeGesture(featureStore.homeSwipeDownAction) },
+                onSwipeRight = {
+                    if (isHomeDashboardOpen && !isWidgetPageOpen) {
+                        isWidgetPageOpen = true
+                        isHomeEditing = false
+                    }
+                },
+                onSwipeLeft = {
+                    if (isWidgetPageOpen) {
+                        isWidgetPageOpen = false
+                        isHomeEditing = false
+                    }
+                }
             )
             .background(colors.background)
             .statusBarsPadding()
@@ -502,21 +527,18 @@ fun MainLauncherScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // 1. Header Telemetry Widget
-            HeaderTelemetryWidget(
-                onTriggerRefresh = { triggerRefreshCycle() }
-            )
-
-            WeatherWidget(
-                store = featureStore,
-                onConfigure = { isWeatherConfigOpen = true }
-            )
-
-            // 2. Retro Media Player Cassette Widget
-            if (isMediaVisible) {
-                RetroMediaPlayerWidget(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)
+            if (!isWidgetPageOpen) {
+                // 1. Header telemetry and compact home widgets
+                HeaderTelemetryWidget(onTriggerRefresh = { triggerRefreshCycle() })
+                WeatherWidget(
+                    store = featureStore,
+                    onConfigure = { isWeatherConfigOpen = true }
                 )
+                if (isMediaVisible) {
+                    RetroMediaPlayerWidget(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)
+                    )
+                }
             }
 
             // 3. Category filters appear in the app drawer; the Home dashboard stays uncluttered.
@@ -534,8 +556,9 @@ fun MainLauncherScreen(
                 )
             }
 
-            // 4. Command / Search Input Bar with Inline Calculator
-            Row(
+            if (!isWidgetPageOpen) {
+                // 4. Command / Search Input Bar with Inline Calculator
+                Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 4.dp)
@@ -607,15 +630,37 @@ fun MainLauncherScreen(
                     )
                 }
                 VoiceCommandButton(onRecognized = ::handleVoiceCommand)
+                }
             }
 
-            // 5. Main Body: scrollable Home dashboard or Niagara-style app drawer
+            // 5. Main Body: Home deck, full-screen widget page, or app drawer
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
             ) {
-                if (isHomeDashboardOpen) {
+                if (isHomeDashboardOpen && isWidgetPageOpen) {
+                    WidgetPageScreen(
+                        store = featureStore,
+                        modules = widgetPageModules,
+                        isEditing = isHomeEditing,
+                        onToggleEdit = { isHomeEditing = !isHomeEditing },
+                        onToggleModule = { module ->
+                            featureStore.toggleWidgetPageModule(module)
+                            widgetPageModules = featureStore.getWidgetPageModules()
+                        },
+                        onMoveModule = { module, offset ->
+                            featureStore.moveWidgetPageModule(module, offset)
+                            widgetPageModules = featureStore.getWidgetPageModules()
+                        },
+                        onReturnHome = {
+                            isWidgetPageOpen = false
+                            isHomeEditing = false
+                        },
+                        onConfigureWeather = { isWeatherConfigOpen = true },
+                        modifier = Modifier
+                    )
+                } else if (isHomeDashboardOpen) {
                     HomeDashboard(
                         apps = allApps,
                         homeShortcutPackages = homeShortcutPackages,

@@ -13,8 +13,8 @@ import kotlin.math.abs
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Observes launcher gestures at the screen container so they work across the whole Home page.
- * It doesn't consume pointer changes, leaving taps and normal widget/list scrolling available.
+ * Observes launcher gestures across the Home and Widget pages without consuming pointer changes.
+ * Child controls and horizontal widget carousels keep their own scroll/tap gestures.
  */
 @Composable
 fun Modifier.homeScreenGestureDetector(
@@ -24,12 +24,16 @@ fun Modifier.homeScreenGestureDetector(
     onDoubleTap: () -> Unit,
     onLongPress: () -> Unit,
     onSwipeUp: () -> Unit,
-    onSwipeDown: () -> Unit
+    onSwipeDown: () -> Unit,
+    onSwipeLeft: () -> Unit = {},
+    onSwipeRight: () -> Unit = {}
 ): Modifier {
     val currentOnDoubleTap by rememberUpdatedState(onDoubleTap)
     val currentOnLongPress by rememberUpdatedState(onLongPress)
     val currentOnSwipeUp by rememberUpdatedState(onSwipeUp)
     val currentOnSwipeDown by rememberUpdatedState(onSwipeDown)
+    val currentOnSwipeLeft by rememberUpdatedState(onSwipeLeft)
+    val currentOnSwipeRight by rememberUpdatedState(onSwipeRight)
 
     return pointerInput(enabled, doubleTapEnabled, swipeThresholdDp) {
         if (!enabled) return@pointerInput
@@ -108,13 +112,23 @@ fun Modifier.homeScreenGestureDetector(
                 }
             } else {
                 lastTapTime = 0L
+                val isQuickHorizontalSwipe =
+                    maxDistance >= swipeDistance &&
+                        abs(dx) >= swipeDistance &&
+                        abs(dx) > abs(dy) * 1.2f &&
+                        duration in 1L..700L
                 val isQuickVerticalSwipe =
                     maxDistance >= swipeDistance &&
                         abs(dy) >= swipeDistance &&
                         abs(dy) > abs(dx) * 1.2f &&
                         duration in 1L..700L
-                if (isQuickVerticalSwipe) {
-                    if (dy < 0f) currentOnSwipeUp() else currentOnSwipeDown()
+                when {
+                    isQuickHorizontalSwipe && !childConsumed -> {
+                        if (dx > 0f) currentOnSwipeRight() else currentOnSwipeLeft()
+                    }
+                    isQuickVerticalSwipe -> {
+                        if (dy < 0f) currentOnSwipeUp() else currentOnSwipeDown()
+                    }
                 }
             }
         }

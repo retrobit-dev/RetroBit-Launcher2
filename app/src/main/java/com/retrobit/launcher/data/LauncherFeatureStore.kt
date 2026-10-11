@@ -41,11 +41,23 @@ class LauncherFeatureStore(context: Context) {
         STACK("STACK + SWIPE")
     }
 
+    enum class WidgetPageModule(val label: String) {
+        CALENDAR("CALENDAR"),
+        NOTES("NOTES"),
+        TODO("TO-DO"),
+        WEATHER("WEATHER"),
+        MEDIA("MEDIA")
+    }
+
     data class HomeWidgetSize(val widthPercent: Int = 100, val heightDp: Int = 220)
 
     var weatherCity: String
         get() = prefs.getString(KEY_WEATHER_CITY, "Semarang") ?: "Semarang"
         set(value) { prefs.edit().putString(KEY_WEATHER_CITY, value.trim()).apply() }
+
+    var widgetPageNote: String
+        get() = prefs.getString(KEY_WIDGET_PAGE_NOTE, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_WIDGET_PAGE_NOTE, value.take(10_000)).apply() }
 
     var themeModeName: String
         get() = prefs.getString(KEY_THEME_MODE, "LIGHT_EINK") ?: "LIGHT_EINK"
@@ -222,6 +234,34 @@ class LauncherFeatureStore(context: Context) {
         val item = ids.removeAt(from)
         ids.add(to, item)
         prefs.edit().putString(KEY_HOME_WIDGETS, JSONArray(ids).toString()).apply()
+    }
+
+    fun getWidgetPageModules(): List<WidgetPageModule> {
+        if (!prefs.contains(KEY_WIDGET_PAGE_MODULES)) return WidgetPageModule.entries
+        return readStringList(KEY_WIDGET_PAGE_MODULES).mapNotNull { value ->
+            runCatching { WidgetPageModule.valueOf(value) }.getOrNull()
+        }.distinct()
+    }
+
+    fun setWidgetPageModules(modules: List<WidgetPageModule>) {
+        writeStringList(KEY_WIDGET_PAGE_MODULES, modules.distinct().map { it.name })
+    }
+
+    fun toggleWidgetPageModule(module: WidgetPageModule) {
+        val modules = getWidgetPageModules().toMutableList()
+        if (module in modules) modules.remove(module) else modules.add(module)
+        setWidgetPageModules(modules)
+    }
+
+    fun moveWidgetPageModule(module: WidgetPageModule, offset: Int) {
+        val modules = getWidgetPageModules().toMutableList()
+        val from = modules.indexOf(module)
+        if (from < 0) return
+        val to = (from + offset).coerceIn(0, modules.lastIndex)
+        if (to == from) return
+        val item = modules.removeAt(from)
+        modules.add(to, item)
+        setWidgetPageModules(modules)
     }
 
     private fun readStringList(key: String): List<String> = try {
@@ -419,6 +459,8 @@ class LauncherFeatureStore(context: Context) {
         private const val KEY_LOCKSCREEN_PIN_SALT = "feature_lockscreen_pin_salt"
         private const val KEY_CUSTOM_PALETTE = "feature_custom_palette"
         private const val KEY_TODOS = "feature_todos"
+        private const val KEY_WIDGET_PAGE_MODULES = "widget_page_modules"
+        private const val KEY_WIDGET_PAGE_NOTE = "widget_page_note"
         private const val KEY_APP_TIMERS = "feature_app_timers"
         private const val KEY_PROFILES = "feature_profiles"
         private const val KEY_ACTIVE_PROFILE = "feature_active_profile"

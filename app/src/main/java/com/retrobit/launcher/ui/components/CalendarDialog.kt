@@ -39,8 +39,8 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-private data class CalendarEvent(val title: String, val begin: Long, val allDay: Boolean)
-private data class WritableCalendar(val id: Long, val displayName: String)
+internal data class CalendarEvent(val title: String, val begin: Long, val allDay: Boolean)
+internal data class WritableCalendar(val id: Long, val displayName: String)
 
 @Composable
 fun CalendarDialog(onDismiss: () -> Unit) {
@@ -334,7 +334,7 @@ fun CalendarDialog(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun CalendarEventEditor(
+internal fun CalendarEventEditor(
     modifier: Modifier,
     title: String,
     onTitleChange: (String) -> Unit,
@@ -432,7 +432,7 @@ private fun CalendarEditorButton(
 private fun formatTime(hour: Int, minute: Int): String =
     String.format(Locale.getDefault(), "%02d:%02d", hour, minute)
 
-private fun queryEvents(context: Context, selectedDayMillis: Long): List<CalendarEvent> {
+internal fun queryEvents(context: Context, selectedDayMillis: Long): List<CalendarEvent> {
     return try {
         val start = Calendar.getInstance().apply {
             timeInMillis = selectedDayMillis
@@ -471,7 +471,7 @@ private fun queryEvents(context: Context, selectedDayMillis: Long): List<Calenda
     }
 }
 
-private fun queryWritableCalendars(context: Context): List<WritableCalendar> {
+internal fun queryWritableCalendars(context: Context): List<WritableCalendar> {
     return try {
         val projection = arrayOf(
             CalendarContract.Calendars._ID,
@@ -500,7 +500,7 @@ private fun queryWritableCalendars(context: Context): List<WritableCalendar> {
     }
 }
 
-private fun insertCalendarEvent(
+internal fun insertCalendarEvent(
     context: Context,
     calendarId: Long,
     title: String,

@@ -96,22 +96,28 @@ fun HomeDashboard(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("HOME // PERSONAL DECK", color = colors.inkPrimary, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
-                        Text("Widgets first, with a scrollable app deck below.", color = colors.inkSecondary, fontSize = 8.sp)
+                        Text(
+                            if (isEditing) "Edit mode // hold a blank area to close." else "Swipe right for widgets · hold blank space to edit.",
+                            color = colors.inkSecondary,
+                            fontSize = 8.sp
+                        )
                     }
-                    Text(
-                        if (isEditing) "[DONE]" else "[EDIT]",
-                        color = colors.inkPrimary,
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.combinedClickable(onClick = onToggleEdit, onLongClick = onToggleEdit).padding(6.dp)
-                    )
-                }
-                Spacer(Modifier.height(7.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    HomeAction("+ APP", Modifier.weight(1f), onAddApp)
-                    HomeAction("+ WIDGET", Modifier.weight(1f), onAddWidget)
+                    if (isEditing) {
+                        Text(
+                            "[DONE]",
+                            color = colors.inkPrimary,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable(onClick = onToggleEdit).padding(6.dp)
+                        )
+                    }
                 }
                 if (isEditing) {
+                    Spacer(Modifier.height(7.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        HomeAction("+ APP", Modifier.weight(1f), onAddApp)
+                        HomeAction("+ WIDGET", Modifier.weight(1f), onAddWidget)
+                    }
                     Spacer(Modifier.height(6.dp))
                     Text("HOME LAYOUT", color = colors.inkMuted, fontSize = 7.sp, fontWeight = FontWeight.Bold)
                     HomeLayoutSelector(
@@ -147,7 +153,7 @@ fun HomeDashboard(
 
         if (widgetIds.isEmpty()) {
             item(key = "home-widgets-empty") {
-                HomeEmptyState("No widgets added. Use + WIDGET to choose Android widgets.")
+                HomeEmptyState("No widgets yet. Hold a blank area, then choose + WIDGET to add one.")
             }
         } else when (widgetLayout) {
             HomeWidgetLayout.HORIZONTAL -> {
@@ -253,7 +259,7 @@ fun HomeDashboard(
 
         if (shortcuts.isEmpty()) {
             item(key = "home-shortcuts-empty") {
-                HomeEmptyState("No home shortcuts yet. Tap + APP or pin an app from its app-drawer menu.")
+                HomeEmptyState("No pinned apps. Hold a blank area to add or arrange apps.")
             }
         } else when (shortcutLayout) {
             HomeContentLayout.HORIZONTAL -> {
@@ -314,7 +320,7 @@ fun HomeDashboard(
 
         item(key = "home-scroll-hint") {
             Text(
-                "SCROLL THE DECK ↑↓ // swipe sideways through STACK widgets; long press anywhere for edit",
+                "SCROLL THE DECK ↑↓ // swipe right for WIDGET PAGE · hold blank area to edit",
                 color = colors.inkMuted,
                 fontSize = 7.sp,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
