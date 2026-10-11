@@ -65,7 +65,7 @@ Buka **SETTINGS** di toolbar bawah untuk panel lima tab: `PROFILE`, `WELLBEING`,
 - **Profiles:** simpan dan tukar snapshot Personal/Work/Gaming untuk favorit, aplikasi tersembunyi, dan alias di perangkat lokal.
 - **Search:** pencarian fuzzy berperingkat tetap bekerja bersama filter kategori.
 - **Easter eggs:** buka Matrix Rain dari tab `TOOLS` atau perintah `matrix`. Kode Konami dapat dimasukkan sebagai perintah terminal berurutan: `UP UP DOWN DOWN LEFT RIGHT LEFT RIGHT B A`.
-- **Calendar & Todo:** tampilan kalender bulan/hari dapat membaca event perangkat setelah izin Calendar diberikan; todo disimpan secara lokal.
+- **Calendar & Todo:** kalender dimulai dari hari Senin, membaca agenda perangkat setelah izin baca diberikan, dan dapat menambahkan agenda sepanjang hari atau berdurasi dengan judul serta catatan ke kalender Android yang dapat ditulis (memerlukan izin baca/tulis); todo disimpan secara lokal.
 - **Appearance:** empat tema bawaan, ukuran ikon yang bisa diatur, dukungan icon pack format ADW `appfilter.xml`, dan impor palet JSON. Format palet yang diterima terlihat di `APPEARANCE`.
 - **Cyberdeck Lockscreen:** overlay PIN lokal opsional. Ini hanya tampilan pengunci di dalam launcher dan **tidak menggantikan** lockscreen/keamanan Android.
 
