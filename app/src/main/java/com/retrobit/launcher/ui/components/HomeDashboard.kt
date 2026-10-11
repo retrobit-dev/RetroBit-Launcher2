@@ -153,7 +153,7 @@ fun HomeDashboard(
                     Column(Modifier.weight(1f)) {
                         Text("HOME // PERSONAL DECK", color = colors.inkPrimary, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
                         Text(
-                            if (isEditing) "Edit mode // hold and release blank space to close; hold and release a card to move, resize or delete it." else "Swipe right for widgets · hold and release blank space to edit · hold and release a card to manage it.",
+                            if (isEditing) "Edit mode // hold and release blank space to close; tap ✎ / × or hold and release a card to manage it." else "Swipe right for widgets · hold and release blank space to add/manage · hold and release a card to edit it.",
                             color = colors.inkSecondary,
                             fontSize = 8.sp
                         )
@@ -184,7 +184,7 @@ fun HomeDashboard(
                     )
                     HomeAction("WIDGET SETTINGS  //  STACK · SWIPE · SIZE", Modifier.fillMaxWidth(), onOpenWidgetSettings)
                     Text("Manage widget layout, swipe behavior, order and size in one place.", color = colors.inkMuted, fontSize = 7.sp)
-                    Text("Hold then release a card to move, resize or delete it; hold a shortcut icon to change it. Drag a held card to reorder or remove; Manual mode keeps ↑↓ arrows.", color = colors.inkMuted, fontSize = 7.sp)
+                    Text("Blank-area edit mode shows + APP / + WIDGET and ✎ / × controls. Tap ✎ or hold and release a card to move/resize; tap × to delete. Hold a shortcut icon to change it. Drag a held card to reorder/remove; Manual mode keeps ↑↓ arrows.", color = colors.inkMuted, fontSize = 7.sp)
                 }
             }
         }
@@ -228,6 +228,9 @@ fun HomeDashboard(
                                     widgetHost = widgetHost,
                                     manager = manager,
                                     availableWidth = availableWidth,
+                                    isEditing = isEditing,
+                                    onEdit = { cardEditor = HomeCardEditor.Widget(widgetId) },
+                                    onRemove = { onRemoveWidget(widgetId) },
                                     modifier = Modifier.homeCardDragTarget(
                                         controller = dragController,
                                         cardKey = widgetCardKey(widgetId),
@@ -254,6 +257,9 @@ fun HomeDashboard(
                             widgetHost = widgetHost,
                             manager = manager,
                             availableWidth = maxWidth,
+                            isEditing = isEditing,
+                            onEdit = { cardEditor = HomeCardEditor.Widget(widgetId) },
+                            onRemove = { onRemoveWidget(widgetId) },
                             modifier = Modifier.fillMaxWidth().homeCardDragTarget(
                                 controller = dragController,
                                 cardKey = widgetCardKey(widgetId),
@@ -303,6 +309,9 @@ fun HomeDashboard(
                                     widgetHost = widgetHost,
                                     manager = manager,
                                     availableWidth = maxWidth,
+                                    isEditing = isEditing,
+                                    onEdit = { cardEditor = HomeCardEditor.Widget(widgetId) },
+                                    onRemove = { onRemoveWidget(widgetId) },
                                     modifier = Modifier.fillMaxSize(),
                                     fillAvailableWidth = true,
                                     contentAlignment = Alignment.Center
@@ -379,6 +388,7 @@ fun HomeDashboard(
                                 ),
                                 onLaunch = { onLaunchApp(app) },
                                 onChangeIcon = { onChangeIcon(app) },
+                                onEdit = { cardEditor = HomeCardEditor.Shortcut(app) },
                                 onIconLongPress = {
                                     shortcutLongPressActions[app.packageName] = true
                                     onChangeIcon(app)
@@ -419,6 +429,7 @@ fun HomeDashboard(
                         ),
                         onLaunch = { onLaunchApp(app) },
                         onChangeIcon = { onChangeIcon(app) },
+                        onEdit = { cardEditor = HomeCardEditor.Shortcut(app) },
                         onIconLongPress = {
                             shortcutLongPressActions[app.packageName] = true
                             onChangeIcon(app)
@@ -467,6 +478,7 @@ fun HomeDashboard(
                                 ),
                                 onLaunch = { onLaunchApp(app) },
                                 onChangeIcon = { onChangeIcon(app) },
+                                onEdit = { cardEditor = HomeCardEditor.Shortcut(app) },
                                 onIconLongPress = {
                                     shortcutLongPressActions[app.packageName] = true
                                     onChangeIcon(app)
@@ -1058,6 +1070,9 @@ private fun HomeWidgetFrame(
     widgetHost: AppWidgetHost,
     manager: AppWidgetManager,
     availableWidth: androidx.compose.ui.unit.Dp,
+    isEditing: Boolean,
+    onEdit: () -> Unit,
+    onRemove: () -> Unit,
     modifier: Modifier,
     fillAvailableWidth: Boolean,
     contentAlignment: Alignment
@@ -1085,6 +1100,9 @@ private fun HomeWidgetFrame(
             providerInfo = providerInfo,
             widgetSize = widgetSize,
             widgetContentWidthDp = widgetContentWidthDp,
+            isEditing = isEditing,
+            onEdit = onEdit,
+            onRemove = onRemove,
             modifier = Modifier.width(widgetWidth)
         )
     }
@@ -1172,6 +1190,7 @@ private fun HomeShortcutTile(
     modifier: Modifier,
     onLaunch: () -> Unit,
     onChangeIcon: () -> Unit,
+    onEdit: () -> Unit,
     onIconLongPress: () -> Unit,
     onRemove: () -> Unit,
     onMove: (Int) -> Unit
@@ -1196,7 +1215,8 @@ private fun HomeShortcutTile(
         }
     }
     val controls = @Composable {
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+            if (isEditing) MiniHomeControl("✎", onEdit)
             if (isEditing) MiniHomeControl("◈") { onChangeIcon() }
             if (isEditing && layout == HomeContentLayout.MANUAL) {
                 MiniHomeControl("↑") { onMove(-1) }
@@ -1249,6 +1269,9 @@ private fun HomeWidgetCard(
     providerInfo: AppWidgetProviderInfo?,
     widgetSize: HomeWidgetSize,
     widgetContentWidthDp: Int,
+    isEditing: Boolean,
+    onEdit: () -> Unit,
+    onRemove: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalRetroBitColors.current
@@ -1279,18 +1302,24 @@ private fun HomeWidgetCard(
     }
 
     Column(modifier.background(colors.surface).border(1.dp, colors.border).padding(7.dp)) {
-        Text(
-            label.uppercase(),
-            color = colors.inkSecondary,
-            fontSize = 8.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.fillMaxWidth(),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(
+                label.uppercase(),
+                color = colors.inkSecondary,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (isEditing) {
+                MiniHomeControl("✎", onEdit)
+                MiniHomeControl("×", onRemove)
+            }
+        }
         Spacer(Modifier.height(4.dp))
         if (providerInfo == null) {
-            Text("Widget provider is unavailable. Remove it in Widget Settings.", color = colors.inkMuted, fontSize = 8.sp)
+            Text("Widget provider is unavailable. Remove it with × in edit mode or in Widget Settings.", color = colors.inkMuted, fontSize = 8.sp)
         } else {
             AndroidView(
                 factory = { viewContext -> widgetHost.createView(viewContext, widgetId, providerInfo) },
@@ -1336,6 +1365,6 @@ private fun MiniHomeControl(label: String, onClick: () -> Unit) {
         color = colors.inkPrimary,
         fontSize = 8.sp,
         fontWeight = FontWeight.Bold,
-        modifier = Modifier.border(1.dp, colors.border).combinedClickable(onClick = onClick, onLongClick = onClick).padding(horizontal = 4.dp, vertical = 2.dp)
+        modifier = Modifier.border(1.dp, colors.border).combinedClickable(onClick = onClick, onLongClick = onClick).padding(horizontal = 3.dp, vertical = 2.dp)
     )
 }
