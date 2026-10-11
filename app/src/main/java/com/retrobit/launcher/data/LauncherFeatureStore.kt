@@ -51,6 +51,12 @@ class LauncherFeatureStore(context: Context) {
 
     data class HomeWidgetSize(val widthPercent: Int = 100, val heightDp: Int = 220)
 
+    data class HomeShortcutSize(
+        val widthDp: Int = 76,
+        val widthPercent: Int = 100,
+        val heightDp: Int = 68
+    )
+
     var weatherCity: String
         get() = prefs.getString(KEY_WEATHER_CITY, "Semarang") ?: "Semarang"
         set(value) { prefs.edit().putString(KEY_WEATHER_CITY, value.trim()).apply() }
@@ -137,6 +143,50 @@ class LauncherFeatureStore(context: Context) {
 
     fun getHomeShortcutPackages(): List<String> = readStringList(KEY_HOME_SHORTCUTS)
 
+    fun getHomeShortcutSizes(): Map<String, HomeShortcutSize> = try {
+        val json = JSONObject(prefs.getString(KEY_HOME_SHORTCUT_SIZES, "{}") ?: "{}")
+        buildMap {
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val packageName = keys.next()
+                val size = json.optJSONObject(packageName) ?: continue
+                put(
+                    packageName,
+                    HomeShortcutSize(
+                        widthDp = size.optInt("widthDp", 76).coerceIn(56, 600),
+                        widthPercent = size.optInt("widthPercent", 100).coerceIn(50, 100),
+                        heightDp = size.optInt("heightDp", 68).coerceIn(48, 320)
+                    )
+                )
+            }
+        }
+    } catch (_: Exception) {
+        emptyMap()
+    }
+
+    fun setHomeShortcutSize(packageName: String, size: HomeShortcutSize) {
+        if (packageName.isBlank()) return
+        val json = runCatching {
+            JSONObject(prefs.getString(KEY_HOME_SHORTCUT_SIZES, "{}") ?: "{}")
+        }.getOrElse { JSONObject() }
+        json.put(
+            packageName,
+            JSONObject()
+                .put("widthDp", size.widthDp.coerceIn(56, 600))
+                .put("widthPercent", size.widthPercent.coerceIn(50, 100))
+                .put("heightDp", size.heightDp.coerceIn(48, 320))
+        )
+        prefs.edit().putString(KEY_HOME_SHORTCUT_SIZES, json.toString()).apply()
+    }
+
+    private fun removeHomeShortcutSize(packageName: String) {
+        val json = runCatching {
+            JSONObject(prefs.getString(KEY_HOME_SHORTCUT_SIZES, "{}") ?: "{}")
+        }.getOrElse { JSONObject() }
+        json.remove(packageName)
+        prefs.edit().putString(KEY_HOME_SHORTCUT_SIZES, json.toString()).apply()
+    }
+
     fun toggleHomeShortcut(packageName: String): Boolean {
         val shortcuts = getHomeShortcutPackages().toMutableList()
         val isPinned = if (packageName in shortcuts) {
@@ -147,6 +197,7 @@ class LauncherFeatureStore(context: Context) {
             true
         }
         writeStringList(KEY_HOME_SHORTCUTS, shortcuts)
+        if (!isPinned) removeHomeShortcutSize(packageName)
         return isPinned
     }
 
@@ -158,6 +209,7 @@ class LauncherFeatureStore(context: Context) {
 
     fun removeHomeShortcut(packageName: String) {
         writeStringList(KEY_HOME_SHORTCUTS, getHomeShortcutPackages().filterNot { it == packageName })
+        removeHomeShortcutSize(packageName)
     }
 
     fun moveHomeShortcut(packageName: String, offset: Int) {
@@ -455,6 +507,7 @@ class LauncherFeatureStore(context: Context) {
         private const val KEY_HOME_SWIPE_UP = "gesture_home_swipe_up_action"
         private const val KEY_HOME_SWIPE_DOWN = "gesture_home_swipe_down_action"
         private const val KEY_HOME_SHORTCUTS = "home_shortcut_packages"
+        private const val KEY_HOME_SHORTCUT_SIZES = "home_shortcut_sizes"
         private const val KEY_HOME_WIDGETS = "home_widget_ids"
         private const val KEY_HOME_WIDGET_SIZES = "home_widget_sizes"
         private const val KEY_HOME_SHORTCUT_LAYOUT = "home_shortcut_layout"

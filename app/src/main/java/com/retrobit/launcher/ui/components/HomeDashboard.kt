@@ -32,6 +32,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -54,6 +55,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -61,8 +63,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
 import com.retrobit.launcher.data.AppModel
 import com.retrobit.launcher.data.LauncherFeatureStore.HomeContentLayout
+import com.retrobit.launcher.data.LauncherFeatureStore.HomeShortcutSize
 import com.retrobit.launcher.data.LauncherFeatureStore.HomeWidgetLayout
 import com.retrobit.launcher.data.LauncherFeatureStore.HomeWidgetSize
 import com.retrobit.launcher.ui.theme.LocalRetroBitColors
@@ -74,6 +78,7 @@ import kotlin.math.abs
 fun HomeDashboard(
     apps: List<AppModel>,
     homeShortcutPackages: List<String>,
+    shortcutSizes: Map<String, HomeShortcutSize>,
     widgetIds: List<Int>,
     widgetSizes: Map<Int, HomeWidgetSize>,
     widgetHost: AppWidgetHost,
@@ -88,6 +93,8 @@ fun HomeDashboard(
     onAddWidget: () -> Unit,
     onRemoveShortcut: (String) -> Unit,
     onRemoveWidget: (Int) -> Unit,
+    onWidgetSizeChange: (Int, HomeWidgetSize) -> Unit,
+    onShortcutSizeChange: (String, HomeShortcutSize) -> Unit,
     onMoveShortcut: (String, Int) -> Unit,
     onMoveWidget: (Int, Int) -> Unit,
     onOpenWidgetSettings: () -> Unit,
@@ -104,6 +111,7 @@ fun HomeDashboard(
     }
     val manualShortcutRows = remember(shortcuts) { shortcuts.chunked(4) }
     val dragController = remember { HomeCardDragController() }
+    var cardEditor by remember { mutableStateOf<HomeCardEditor?>(null) }
     val handleCardDrop: (HomeCardDrop) -> Unit = { drop ->
         when (drop) {
             is HomeCardDrop.RemoveShortcut -> onRemoveShortcut(drop.packageName)
@@ -144,7 +152,7 @@ fun HomeDashboard(
                     Column(Modifier.weight(1f)) {
                         Text("HOME // PERSONAL DECK", color = colors.inkPrimary, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
                         Text(
-                            if (isEditing) "Edit mode // hold blank space to close; drag cards to sort or remove." else "Swipe right for widgets · hold blank space to edit · hold-drag cards.",
+                            if (isEditing) "Edit mode // hold blank space to close; hold a card for move, size and delete options." else "Swipe right for widgets · hold blank space to edit · hold a card to manage it.",
                             color = colors.inkSecondary,
                             fontSize = 8.sp
                         )
@@ -175,7 +183,7 @@ fun HomeDashboard(
                     )
                     HomeAction("WIDGET SETTINGS  //  STACK · SWIPE · SIZE", Modifier.fillMaxWidth(), onOpenWidgetSettings)
                     Text("Manage widget layout, swipe behavior, order and size in one place.", color = colors.inkMuted, fontSize = 7.sp)
-                    Text("Hold and drag cards to reorder or remove; use ◈ to customize icons. Manual arrows remain available.", color = colors.inkMuted, fontSize = 7.sp)
+                    Text("Hold a card to move, resize, change its icon, or delete it; drag also reorders. Manual mode keeps ↑↓ arrows.", color = colors.inkMuted, fontSize = 7.sp)
                 }
             }
         }
@@ -225,7 +233,8 @@ fun HomeDashboard(
                                         cardKind = HomeCardKind.WIDGET,
                                         shortcutLayout = shortcutLayout,
                                         widgetLayout = widgetLayout,
-                                        onDrop = currentOnCardDrop
+                                        onDrop = currentOnCardDrop,
+                                        onLongPressWithoutDrag = { cardEditor = HomeCardEditor.Widget(widgetId) }
                                     ),
                                     fillAvailableWidth = false,
                                     contentAlignment = Alignment.CenterStart
@@ -250,7 +259,8 @@ fun HomeDashboard(
                                 cardKind = HomeCardKind.WIDGET,
                                 shortcutLayout = shortcutLayout,
                                 widgetLayout = widgetLayout,
-                                onDrop = currentOnCardDrop
+                                onDrop = currentOnCardDrop,
+                                onLongPressWithoutDrag = { cardEditor = HomeCardEditor.Widget(widgetId) }
                             ),
                             fillAvailableWidth = true,
                             contentAlignment = Alignment.CenterStart
@@ -282,7 +292,8 @@ fun HomeDashboard(
                                     cardKind = HomeCardKind.WIDGET,
                                     shortcutLayout = shortcutLayout,
                                     widgetLayout = widgetLayout,
-                                    onDrop = currentOnCardDrop
+                                    onDrop = currentOnCardDrop,
+                                    onLongPressWithoutDrag = { cardEditor = HomeCardEditor.Widget(widgetId) }
                                 )
                             ) {
                                 HomeWidgetFrame(
@@ -343,15 +354,19 @@ fun HomeDashboard(
                             HomeShortcutTile(
                                 app = app,
                                 iconSizeDp = iconSizeDp,
+                                shortcutSize = shortcutSizes[app.packageName],
                                 layout = HomeContentLayout.HORIZONTAL,
                                 isEditing = isEditing,
-                                modifier = Modifier.width(76.dp).homeCardDragTarget(
+                                modifier = (shortcutSizes[app.packageName]?.let {
+                                    Modifier.width(it.widthDp.dp).height(it.heightDp.coerceAtLeast(minimumHomeShortcutHeight(shortcutLayout, iconSizeDp)).dp)
+                                } ?: Modifier.width(76.dp)).homeCardDragTarget(
                                     controller = dragController,
                                     cardKey = shortcutCardKey(app.packageName),
                                     cardKind = HomeCardKind.SHORTCUT,
                                     shortcutLayout = shortcutLayout,
                                     widgetLayout = widgetLayout,
-                                    onDrop = currentOnCardDrop
+                                    onDrop = currentOnCardDrop,
+                                    onLongPressWithoutDrag = { cardEditor = HomeCardEditor.Shortcut(app) }
                                 ),
                                 onLaunch = { onLaunchApp(app) },
                                 onChangeIcon = { onChangeIcon(app) },
@@ -367,15 +382,19 @@ fun HomeDashboard(
                     HomeShortcutTile(
                         app = app,
                         iconSizeDp = iconSizeDp,
+                        shortcutSize = shortcutSizes[app.packageName],
                         layout = HomeContentLayout.VERTICAL,
                         isEditing = isEditing,
-                        modifier = Modifier.fillMaxWidth().homeCardDragTarget(
+                        modifier = (shortcutSizes[app.packageName]?.let {
+                            Modifier.fillMaxWidth(it.widthPercent / 100f).height(it.heightDp.coerceAtLeast(minimumHomeShortcutHeight(shortcutLayout, iconSizeDp)).dp)
+                        } ?: Modifier.fillMaxWidth()).homeCardDragTarget(
                             controller = dragController,
                             cardKey = shortcutCardKey(app.packageName),
                             cardKind = HomeCardKind.SHORTCUT,
                             shortcutLayout = shortcutLayout,
                             widgetLayout = widgetLayout,
-                            onDrop = currentOnCardDrop
+                            onDrop = currentOnCardDrop,
+                            onLongPressWithoutDrag = { cardEditor = HomeCardEditor.Shortcut(app) }
                         ),
                         onLaunch = { onLaunchApp(app) },
                         onChangeIcon = { onChangeIcon(app) },
@@ -388,18 +407,28 @@ fun HomeDashboard(
                 itemsIndexed(manualShortcutRows, key = { _, row -> "shortcut-row-${row.first().packageName}" }) { _, row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                         row.forEach { app ->
+                            val shortcutSize = shortcutSizes[app.packageName]
+                            val tileModifier = if (shortcutSize == null) {
+                                Modifier.weight(1f)
+                            } else {
+                                Modifier.weight(1f, fill = false)
+                                    .fillMaxWidth(shortcutSize.widthPercent / 100f)
+                                    .height(shortcutSize.heightDp.coerceAtLeast(minimumHomeShortcutHeight(shortcutLayout, iconSizeDp)).dp)
+                            }
                             HomeShortcutTile(
                                 app = app,
                                 iconSizeDp = iconSizeDp,
+                                shortcutSize = shortcutSize,
                                 layout = HomeContentLayout.MANUAL,
                                 isEditing = isEditing,
-                                modifier = Modifier.weight(1f).homeCardDragTarget(
+                                modifier = tileModifier.homeCardDragTarget(
                                     controller = dragController,
                                     cardKey = shortcutCardKey(app.packageName),
                                     cardKind = HomeCardKind.SHORTCUT,
                                     shortcutLayout = shortcutLayout,
                                     widgetLayout = widgetLayout,
-                                    onDrop = currentOnCardDrop
+                                    onDrop = currentOnCardDrop,
+                                    onLongPressWithoutDrag = { cardEditor = HomeCardEditor.Shortcut(app) }
                                 ),
                                 onLaunch = { onLaunchApp(app) },
                                 onChangeIcon = { onChangeIcon(app) },
@@ -415,7 +444,7 @@ fun HomeDashboard(
 
         item(key = "home-scroll-hint") {
             Text(
-                "SCROLL THE DECK ↑↓ // swipe right for WIDGET PAGE · hold-drag cards to sort/remove",
+                "SCROLL THE DECK ↑↓ // swipe right for WIDGET PAGE · hold cards to edit · drag to sort/remove",
                 color = colors.inkMuted,
                 fontSize = 7.sp,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
@@ -445,9 +474,74 @@ fun HomeDashboard(
             }
         }
     }
+
+    when (val editor = cardEditor) {
+        is HomeCardEditor.Shortcut -> {
+            val app = editor.app
+            val homeIndex = homeShortcutPackages.indexOf(app.packageName)
+            HomeShortcutEditDialog(
+                app = app,
+                layout = shortcutLayout,
+                size = shortcutSizes[app.packageName] ?: defaultHomeShortcutSize(shortcutLayout, iconSizeDp),
+                iconSizeDp = iconSizeDp,
+                canMoveUp = homeIndex > 0,
+                canMoveDown = homeIndex in 0 until homeShortcutPackages.lastIndex,
+                onSizeChange = { onShortcutSizeChange(app.packageName, it) },
+                onMove = { offset ->
+                    onMoveShortcut(app.packageName, offset)
+                    cardEditor = null
+                },
+                onChangeIcon = {
+                    cardEditor = null
+                    onChangeIcon(app)
+                },
+                onRemove = {
+                    onRemoveShortcut(app.packageName)
+                    cardEditor = null
+                },
+                onDismiss = { cardEditor = null }
+            )
+        }
+        is HomeCardEditor.Widget -> {
+            val widgetId = editor.widgetId
+            val providerInfo = remember(widgetId, manager) { manager.getAppWidgetInfo(widgetId) }
+            val widgetLabel = remember(providerInfo, context) {
+                runCatching { providerInfo?.loadLabel(context.packageManager)?.toString() }
+                    .getOrNull()?.takeIf { it.isNotBlank() } ?: "ANDROID WIDGET"
+            }
+            val minimumHeight = minimumWidgetBodyHeight(providerInfo)
+            val widgetIndex = widgetIds.indexOf(widgetId)
+            val initialSize = (widgetSizes[widgetId] ?: defaultHomeWidgetSize(providerInfo)).copy(
+                heightDp = (widgetSizes[widgetId]?.heightDp ?: minimumHeight).coerceAtLeast(minimumHeight)
+            )
+            HomeWidgetEditDialog(
+                widgetLabel = widgetLabel,
+                widgetSize = initialSize,
+                minimumHeightDp = minimumHeight,
+                canMoveUp = widgetIndex > 0,
+                canMoveDown = widgetIndex in 0 until widgetIds.lastIndex,
+                onSizeChange = { onWidgetSizeChange(widgetId, it) },
+                onMove = { offset ->
+                    onMoveWidget(widgetId, offset)
+                    cardEditor = null
+                },
+                onRemove = {
+                    onRemoveWidget(widgetId)
+                    cardEditor = null
+                },
+                onDismiss = { cardEditor = null }
+            )
+        }
+        null -> Unit
+    }
 }
 
 private enum class HomeCardKind { SHORTCUT, WIDGET }
+
+private sealed class HomeCardEditor {
+    data class Shortcut(val app: AppModel) : HomeCardEditor()
+    data class Widget(val widgetId: Int) : HomeCardEditor()
+}
 
 private data class ActiveHomeCardDrag(
     val cardKey: String,
@@ -587,11 +681,13 @@ private fun Modifier.homeCardDragTarget(
     cardKind: HomeCardKind,
     shortcutLayout: HomeContentLayout,
     widgetLayout: HomeWidgetLayout,
-    onDrop: (HomeCardDrop) -> Unit
+    onDrop: (HomeCardDrop) -> Unit,
+    onLongPressWithoutDrag: () -> Unit = {}
 ): Modifier {
     val colors = LocalRetroBitColors.current
     val coordinates = remember(cardKey) { mutableStateOf<LayoutCoordinates?>(null) }
     val latestOnDrop by rememberUpdatedState(onDrop)
+    val latestOnLongPress by rememberUpdatedState(onLongPressWithoutDrag)
     val isDragging = controller.activeCard?.cardKey == cardKey
     val isDropTarget = controller.activeDropTargetKey == cardKey
 
@@ -654,6 +750,8 @@ private fun Modifier.homeCardDragTarget(
                     if (dragging) {
                         coordinates.value?.localToRoot(change.position)?.let(controller::updatePointer)
                         change.consume()
+                    } else if (longPressReached && !movedBeforeLongPress && !change.pressed) {
+                        change.consume()
                     }
                     current = change
                 }
@@ -662,6 +760,8 @@ private fun Modifier.homeCardDragTarget(
                     controller.finish(shortcutLayout, widgetLayout)?.let(latestOnDrop)
                 } else if (cancelled) {
                     controller.cancel()
+                } else if (longPressReached && !movedBeforeLongPress) {
+                    latestOnLongPress()
                 }
             }
         }
@@ -727,6 +827,121 @@ private fun <T> homeMoveOffsetForDrop(
     val destinationIndex = (if (sourceIndex < insertionIndex) insertionIndex - 1 else insertionIndex)
         .coerceIn(0, order.lastIndex)
     return (destinationIndex - sourceIndex).takeIf { it != 0 }
+}
+
+private fun minimumHomeShortcutHeight(layout: HomeContentLayout, iconSizeDp: Float): Int =
+    (iconSizeDp + if (layout == HomeContentLayout.VERTICAL) 12f else 20f).toInt().coerceIn(48, 320)
+
+private fun defaultHomeShortcutSize(layout: HomeContentLayout, iconSizeDp: Float): HomeShortcutSize =
+    HomeShortcutSize(widthDp = 76, widthPercent = 100, heightDp = minimumHomeShortcutHeight(layout, iconSizeDp))
+
+@Composable
+private fun HomeWidgetEditDialog(
+    widgetLabel: String,
+    widgetSize: HomeWidgetSize,
+    minimumHeightDp: Int,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onSizeChange: (HomeWidgetSize) -> Unit,
+    onMove: (Int) -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = LocalRetroBitColors.current
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().background(colors.background).border(2.dp, colors.border).padding(12.dp)
+        ) {
+            Text("EDIT HOME CARD", color = colors.inkPrimary, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+            Text(widgetLabel.uppercase(), color = colors.inkSecondary, fontSize = 8.sp)
+            Spacer(Modifier.height(8.dp))
+            SectionLabel("WIDTH // ${widgetSize.widthPercent}%")
+            Slider(
+                value = widgetSize.widthPercent.toFloat(),
+                onValueChange = { onSizeChange(widgetSize.copy(widthPercent = it.toInt().coerceIn(50, 100))) },
+                valueRange = 50f..100f,
+                steps = 9
+            )
+            SectionLabel("HEIGHT // ${widgetSize.heightDp} DP")
+            Slider(
+                value = widgetSize.heightDp.toFloat().coerceIn(minimumHeightDp.toFloat(), 600f),
+                onValueChange = { onSizeChange(widgetSize.copy(heightDp = it.toInt().coerceIn(minimumHeightDp, 600))) },
+                valueRange = minimumHeightDp.toFloat()..600f
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                HomeAction("MOVE UP", Modifier.weight(1f)) { if (canMoveUp) onMove(-1) }
+                HomeAction("MOVE DOWN", Modifier.weight(1f)) { if (canMoveDown) onMove(1) }
+            }
+            Spacer(Modifier.height(7.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                HomeAction("DELETE CARD", Modifier.weight(1f), onRemove)
+                HomeAction("DONE", Modifier.weight(1f), onDismiss)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeShortcutEditDialog(
+    app: AppModel,
+    layout: HomeContentLayout,
+    size: HomeShortcutSize,
+    iconSizeDp: Float,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onSizeChange: (HomeShortcutSize) -> Unit,
+    onMove: (Int) -> Unit,
+    onChangeIcon: () -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = LocalRetroBitColors.current
+    val maxWidthDp = LocalConfiguration.current.screenWidthDp.toFloat().coerceIn(180f, 600f)
+    val minimumHeightDp = minimumHomeShortcutHeight(layout, iconSizeDp)
+    val shownHeightDp = size.heightDp.coerceAtLeast(minimumHeightDp)
+    val shownWidthDp = size.widthDp.coerceIn(56, maxWidthDp.toInt())
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().background(colors.background).border(2.dp, colors.border).padding(12.dp)
+        ) {
+            Text("EDIT APP CARD", color = colors.inkPrimary, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+            Text(app.displayLabel, color = colors.inkSecondary, fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(8.dp))
+            if (layout == HomeContentLayout.HORIZONTAL) {
+                SectionLabel("WIDTH // $shownWidthDp DP")
+                Slider(
+                    value = shownWidthDp.toFloat(),
+                    onValueChange = { onSizeChange(size.copy(widthDp = it.toInt().coerceIn(56, maxWidthDp.toInt()))) },
+                    valueRange = 56f..maxWidthDp
+                )
+            } else {
+                SectionLabel("WIDTH // ${size.widthPercent}%")
+                Slider(
+                    value = size.widthPercent.toFloat(),
+                    onValueChange = { onSizeChange(size.copy(widthPercent = it.toInt().coerceIn(50, 100))) },
+                    valueRange = 50f..100f,
+                    steps = 9
+                )
+            }
+            SectionLabel("HEIGHT // $shownHeightDp DP")
+            Slider(
+                value = shownHeightDp.toFloat().coerceIn(minimumHeightDp.toFloat(), 320f),
+                onValueChange = { onSizeChange(size.copy(heightDp = it.toInt().coerceIn(minimumHeightDp, 320))) },
+                valueRange = minimumHeightDp.toFloat()..320f
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                HomeAction("MOVE UP", Modifier.weight(1f)) { if (canMoveUp) onMove(-1) }
+                HomeAction("MOVE DOWN", Modifier.weight(1f)) { if (canMoveDown) onMove(1) }
+            }
+            Spacer(Modifier.height(7.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                HomeAction("CHANGE ICON", Modifier.weight(1f), onChangeIcon)
+                HomeAction("DELETE CARD", Modifier.weight(1f), onRemove)
+            }
+            Spacer(Modifier.height(5.dp))
+            HomeAction("DONE", Modifier.fillMaxWidth(), onDismiss)
+        }
+    }
 }
 
 @Composable
@@ -816,6 +1031,7 @@ private fun defaultHomeWidgetSize(providerInfo: AppWidgetProviderInfo?): HomeWid
 private fun HomeShortcutTile(
     app: AppModel,
     iconSizeDp: Float,
+    shortcutSize: HomeShortcutSize?,
     layout: HomeContentLayout,
     isEditing: Boolean,
     modifier: Modifier,
@@ -854,7 +1070,8 @@ private fun HomeShortcutTile(
     }
 
     if (layout == HomeContentLayout.VERTICAL) {
-        Row(modifier = modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+        val verticalModifier = if (shortcutSize == null) modifier.fillMaxWidth() else modifier
+        Row(modifier = verticalModifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
             icon()
             Text(
                 app.displayLabel,
@@ -867,7 +1084,11 @@ private fun HomeShortcutTile(
             controls()
         }
     } else {
-        Column(modifier = modifier.padding(vertical = 3.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            modifier = modifier.padding(vertical = 3.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = if (shortcutSize == null) Arrangement.Top else Arrangement.Center
+        ) {
             icon()
             Text(
                 app.displayLabel,

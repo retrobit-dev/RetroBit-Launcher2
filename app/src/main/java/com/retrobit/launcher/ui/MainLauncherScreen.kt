@@ -45,6 +45,7 @@ import com.retrobit.launcher.data.DeviceLockController
 import com.retrobit.launcher.data.LauncherFeatureStore
 import com.retrobit.launcher.data.LauncherFeatureStore.HomeContentLayout
 import com.retrobit.launcher.data.LauncherFeatureStore.HomeGestureAction
+import com.retrobit.launcher.data.LauncherFeatureStore.HomeShortcutSize
 import com.retrobit.launcher.data.LauncherFeatureStore.HomeWidgetLayout
 import com.retrobit.launcher.data.LauncherFeatureStore.HomeWidgetSize
 import com.retrobit.launcher.data.NotificationMonitorService
@@ -98,6 +99,7 @@ fun MainLauncherScreen(
     var isHomeShortcutPickerOpen by remember { mutableStateOf(false) }
     var isHomeWidgetSettingsOpen by remember { mutableStateOf(false) }
     var homeShortcutPackages by remember { mutableStateOf(featureStore.getHomeShortcutPackages()) }
+    var homeShortcutSizes by remember { mutableStateOf(featureStore.getHomeShortcutSizes()) }
     var homeWidgetIds by remember { mutableStateOf(featureStore.getHomeWidgetIds()) }
     var homeWidgetSizes by remember { mutableStateOf(featureStore.getHomeWidgetSizes()) }
     var homeShortcutLayout by remember { mutableStateOf(featureStore.homeShortcutLayout) }
@@ -224,6 +226,7 @@ fun MainLauncherScreen(
     fun toggleHomeShortcut(packageName: String) {
         featureStore.toggleHomeShortcut(packageName)
         homeShortcutPackages = featureStore.getHomeShortcutPackages()
+        homeShortcutSizes = featureStore.getHomeShortcutSizes()
     }
 
     fun moveHomeShortcut(packageName: String, offset: Int) {
@@ -239,6 +242,11 @@ fun MainLauncherScreen(
     fun resizeHomeWidget(widgetId: Int, size: HomeWidgetSize) {
         featureStore.setHomeWidgetSize(widgetId, size)
         homeWidgetSizes = featureStore.getHomeWidgetSizes()
+    }
+
+    fun resizeHomeShortcut(packageName: String, size: HomeShortcutSize) {
+        featureStore.setHomeShortcutSize(packageName, size)
+        homeShortcutSizes = featureStore.getHomeShortcutSizes()
     }
 
     fun setHomeShortcutLayout(layout: HomeContentLayout) {
@@ -672,6 +680,7 @@ fun MainLauncherScreen(
                     HomeDashboard(
                         apps = allApps,
                         homeShortcutPackages = homeShortcutPackages,
+                        shortcutSizes = homeShortcutSizes,
                         widgetIds = homeWidgetIds,
                         widgetSizes = homeWidgetSizes,
                         widgetHost = widgetHost,
@@ -687,8 +696,11 @@ fun MainLauncherScreen(
                         onRemoveShortcut = { packageName ->
                             featureStore.removeHomeShortcut(packageName)
                             homeShortcutPackages = featureStore.getHomeShortcutPackages()
+                            homeShortcutSizes = featureStore.getHomeShortcutSizes()
                         },
                         onRemoveWidget = ::removeHomeWidget,
+                        onWidgetSizeChange = ::resizeHomeWidget,
+                        onShortcutSizeChange = ::resizeHomeShortcut,
                         onMoveShortcut = ::moveHomeShortcut,
                         onMoveWidget = ::moveHomeWidget,
                         onOpenWidgetSettings = { isHomeWidgetSettingsOpen = true },
@@ -820,6 +832,7 @@ fun MainLauncherScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(56.dp)
                     .background(colors.surface)
                     .border(0.5.dp, colors.border)
                     .padding(horizontal = 14.dp, vertical = 5.dp),
@@ -964,6 +977,7 @@ fun MainLauncherScreen(
                 onSelect = { app ->
                     featureStore.addHomeShortcut(app.packageName)
                     homeShortcutPackages = featureStore.getHomeShortcutPackages()
+                    homeShortcutSizes = featureStore.getHomeShortcutSizes()
                     isHomeShortcutPickerOpen = false
                 },
                 onDismiss = { isHomeShortcutPickerOpen = false }
@@ -1121,7 +1135,7 @@ fun DeckIconButton(
     val colors = LocalRetroBitColors.current
     Box(
         modifier = modifier
-            .height(42.dp)
+            .fillMaxHeight()
             .background(colors.background)
             .border(1.dp, colors.border, RoundedCornerShape(2.dp))
             .clickable(onClick = onClick),
