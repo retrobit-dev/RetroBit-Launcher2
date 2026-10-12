@@ -33,6 +33,7 @@ class AppRepository(private val context: Context) {
         private const val PREF_APP_ICON_OVERRIDES = "custom_app_icon_overrides"
         private const val TYPE_IMAGE = "image"
         private const val TYPE_ICON_PACK = "icon_pack"
+        private const val TYPE_ICON_PACK_RESOURCE = "icon_pack_resource"
     }
 
     // 1. Favorites
@@ -115,6 +116,12 @@ class AppRepository(private val context: Context) {
         prefs.edit().putString(PREF_LABELS, json).apply()
     }
 
+    data class CustomAppIconPackSelection(
+        val iconPackPackage: String,
+        val resourceType: String,
+        val resourceName: String
+    )
+
     private data class AppIconOverride(val type: String, val value: String)
 
     fun setCustomAppIconImage(packageName: String, uri: Uri) {
@@ -125,12 +132,40 @@ class AppRepository(private val context: Context) {
         saveAppIconOverride(packageName, AppIconOverride(TYPE_ICON_PACK, iconPackPackage))
     }
 
+    fun setCustomAppIconPackResource(
+        packageName: String,
+        iconPackPackage: String,
+        resourceType: String,
+        resourceName: String
+    ) {
+        val value = JSONObject()
+            .put("packPackage", iconPackPackage)
+            .put("resourceType", resourceType)
+            .put("resourceName", resourceName)
+            .toString()
+        saveAppIconOverride(packageName, AppIconOverride(TYPE_ICON_PACK_RESOURCE, value))
+    }
+
     fun clearCustomAppIcon(packageName: String) {
         saveAppIconOverride(packageName, null)
     }
 
     fun customAppIconPack(packageName: String): String? =
         readAppIconOverrides()[packageName]?.takeIf { it.type == TYPE_ICON_PACK }?.value
+
+    fun customAppIconPackSelection(packageName: String): CustomAppIconPackSelection? {
+        val override = readAppIconOverrides()[packageName]?.takeIf { it.type == TYPE_ICON_PACK_RESOURCE } ?: return null
+        return customPackResourceFromJson(override.value)
+    }
+
+    private fun customPackResourceFromJson(value: String): CustomAppIconPackSelection? {
+        val json = runCatching { JSONObject(value) }.getOrNull() ?: return null
+        val packPackage = json.optString("packPackage")
+        val resourceType = json.optString("resourceType")
+        val resourceName = json.optString("resourceName")
+        if (packPackage.isBlank() || resourceType.isBlank() || resourceName.isBlank()) return null
+        return CustomAppIconPackSelection(packPackage, resourceType, resourceName)
+    }
 
     fun hasCustomAppIcon(packageName: String): Boolean = packageName in readAppIconOverrides()
 
@@ -168,7 +203,7 @@ class AppRepository(private val context: Context) {
                 val item = json.optJSONObject(key) ?: continue
                 val type = item.optString("type")
                 val value = item.optString("value")
-                if (type in setOf(TYPE_IMAGE, TYPE_ICON_PACK) && value.isNotBlank()) {
+                if (type in setOf(TYPE_IMAGE, TYPE_ICON_PACK, TYPE_ICON_PACK_RESOURCE) && value.isNotBlank()) {
                     put(key, AppIconOverride(type, value))
                 }
             }
@@ -232,6 +267,13 @@ class AppRepository(private val context: Context) {
                 when (iconOverride.type) {
                     TYPE_IMAGE -> loadImageIcon(iconOverride.value)
                     TYPE_ICON_PACK -> iconPackManager.iconFor(pkg, compName, iconOverride.value)
+                    TYPE_ICON_PACK_RESOURCE -> customPackResourceFromJson(iconOverride.value)?.let { selection ->
+                        iconPackManager.drawableForResource(
+                            selection.iconPackPackage,
+                            selection.resourceType,
+                            selection.resourceName
+                        )
+                    }
                     else -> null
                 }
             }

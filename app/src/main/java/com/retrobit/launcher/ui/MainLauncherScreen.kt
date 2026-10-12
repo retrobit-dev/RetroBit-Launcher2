@@ -942,18 +942,22 @@ fun MainLauncherScreen(
 
         selectedAppForIcon?.let { app ->
             val hasCustomIcon = repository.hasCustomAppIcon(app.packageName)
-            val activeIconPack = repository.customAppIconPack(app.packageName)
+            val iconPackSelection = repository.customAppIconPackSelection(app.packageName)
+            val activeIconPack = iconPackSelection?.iconPackPackage
+                ?: repository.customAppIconPack(app.packageName)
                 ?: if (hasCustomIcon) null else featureStore.selectedIconPack
             AppIconPickerDialog(
                 app = app,
                 activeIconPackPackage = activeIconPack,
+                activeIconResourceType = iconPackSelection?.resourceType,
+                activeIconResourceName = iconPackSelection?.resourceName,
                 hasCustomIcon = hasCustomIcon,
                 onChooseImage = { chooseCustomIconImage(app) },
-                onSelectIconPack = { packPackage ->
-                    repository.setCustomAppIconPack(app.packageName, packPackage)
+                onSelectIconPackIcon = { packPackage, resourceType, resourceName ->
+                    repository.setCustomAppIconPackResource(app.packageName, packPackage, resourceType, resourceName)
                     selectedAppForIcon = null
                     refreshApps()
-                    Toast.makeText(context, "Icon pack applied to Home and app drawer.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Icon applied to Home and app drawer.", Toast.LENGTH_SHORT).show()
                 },
                 onReset = {
                     repository.clearCustomAppIcon(app.packageName)
