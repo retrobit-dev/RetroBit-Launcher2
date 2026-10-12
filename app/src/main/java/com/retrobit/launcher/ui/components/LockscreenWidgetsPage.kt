@@ -10,12 +10,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,13 +41,13 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
-internal fun LockscreenWidgetsPage(
+internal fun LockscreenWidgetsSection(
     store: LauncherFeatureStore,
     modules: List<WidgetPageModule>
 ) {
     val colors = LocalRetroBitColors.current
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Column(
@@ -59,7 +56,7 @@ internal fun LockscreenWidgetsPage(
         ) {
             Text("LOCKSCREEN WIDGETS", color = colors.inkPrimary, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
             Text(
-                "READ-ONLY PREVIEW · UNLOCK TO EDIT OR OPEN APPS",
+                "READ-ONLY WHILE LOCKED · SELECT MODULES IN SETTINGS",
                 color = colors.inkSecondary,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold

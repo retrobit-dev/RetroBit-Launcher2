@@ -220,7 +220,7 @@ fun SettingsPanelDialog(
                             } else statusMessage = "PIN must contain 4–8 digits."
                         }
                         SettingAction("PREVIEW CYBERDECK LOCKSCREEN", "Open the in-app lock screen preview.", onPreviewLockscreen)
-                        SectionLabel("LOCKSCREEN WIDGET PAGE")
+                        SectionLabel("LOCKSCREEN WIDGETS")
                         Text(
                             "Choose what remains visible on the lockscreen. These previews are read-only; select only information you are comfortable showing while locked.",
                             color = colors.inkSecondary,
