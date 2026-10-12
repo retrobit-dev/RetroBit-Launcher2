@@ -194,7 +194,7 @@ fun SettingsPanelDialog(
                             statusMessage = "Profile saved locally."
                         }
                         SectionLabel("LOCKSCREEN")
-                        Text("Set a local PIN first. If fingerprint or face is enrolled in Android, the lock screen can also use its system biometric prompt; the PIN remains fallback. This overlay does not replace Android's secure keyguard.", color = colors.inkMuted, fontSize = 9.sp)
+                        Text("Set a local PIN as backup. Compatible enrolled biometrics are tried first, and the PIN stays hidden until biometric authentication fails. If biometrics are unavailable, the PIN can be used directly. This overlay does not replace Android's secure keyguard.", color = colors.inkMuted, fontSize = 9.sp)
                         ToggleSetting("ENABLE LOCKSCREEN PREVIEW", "Shows the cyberdeck overlay when preview is opened.", lockscreenEnabled) {
                             lockscreenEnabled = it
                             store.lockscreenEnabled = it

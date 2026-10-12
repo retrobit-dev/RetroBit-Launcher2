@@ -56,14 +56,17 @@ fun CyberLockScreenDialog(store: LauncherFeatureStore, onDismiss: () -> Unit) {
     var entered by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var biometricError by remember { mutableStateOf("") }
+    var showPinFallback by remember { mutableStateOf(false) }
     var now by remember { mutableStateOf(Date()) }
     val currentOnDismiss = rememberUpdatedState(onDismiss)
     val currentBiometricErrorHandler = rememberUpdatedState<(String) -> Unit> { message -> biometricError = message }
+    val currentPinFallbackHandler = rememberUpdatedState<() -> Unit> { showPinFallback = true }
+    val activeBiometricPrompt = remember { java.util.concurrent.atomic.AtomicReference<BiometricPrompt?>(null) }
     val promptInfo = remember {
         BiometricPrompt.PromptInfo.Builder()
             .setTitle("Unlock RetroBit")
             .setSubtitle("Use fingerprint or face unlock")
-            .setNegativeButtonText("USE PIN")
+            .setNegativeButtonText("CANCEL")
             .setAllowedAuthenticators(authenticators)
             .build()
     }
@@ -79,7 +82,11 @@ fun CyberLockScreenDialog(store: LauncherFeatureStore, onDismiss: () -> Unit) {
                     }
 
                     override fun onAuthenticationFailed() {
-                        currentBiometricErrorHandler.value("Biometric not recognized. Try again or enter your PIN.")
+                        currentBiometricErrorHandler.value(
+                            "Biometric not recognized. Enter your PIN below, or try again."
+                        )
+                        currentPinFallbackHandler.value.invoke()
+                        activeBiometricPrompt.get()?.cancelAuthentication()
                     }
 
                     override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
@@ -88,12 +95,14 @@ fun CyberLockScreenDialog(store: LauncherFeatureStore, onDismiss: () -> Unit) {
                             errorCode != BiometricPrompt.ERROR_CANCELED
                         ) {
                             currentBiometricErrorHandler.value(errString.toString())
+                            currentPinFallbackHandler.value.invoke()
                         }
                     }
                 }
             )
         }
     }
+    SideEffect { activeBiometricPrompt.set(biometricPrompt) }
     LaunchedEffect(Unit) {
         while (true) {
             now = Date()
@@ -179,7 +188,8 @@ fun CyberLockScreenDialog(store: LauncherFeatureStore, onDismiss: () -> Unit) {
                             Spacer(Modifier.height(8.dp))
                             Text("Set a PIN in Settings → Profile first.", color = colors.inkSecondary, fontSize = 12.sp, textAlign = TextAlign.Center)
                         } else {
-                            if (biometricStatus == BiometricManager.BIOMETRIC_SUCCESS && biometricPrompt != null) {
+                            val biometricAvailable = biometricStatus == BiometricManager.BIOMETRIC_SUCCESS && biometricPrompt != null
+                            if (biometricAvailable) {
                                 Text(
                                     "UNLOCK WITH FINGERPRINT OR FACE",
                                     color = colors.background,
@@ -190,15 +200,39 @@ fun CyberLockScreenDialog(store: LauncherFeatureStore, onDismiss: () -> Unit) {
                                         .background(colors.inkPrimary)
                                         .clickable {
                                             biometricError = ""
-                                            runCatching { biometricPrompt.authenticate(promptInfo) }
-                                                .onFailure { biometricError = it.message ?: "Could not start Android biometric authentication." }
+                                            error = ""
+                                            showPinFallback = false
+                                            val prompt = biometricPrompt
+                                            if (prompt != null) {
+                                                runCatching { prompt.authenticate(promptInfo) }
+                                                    .onFailure {
+                                                        biometricError = it.message ?: "Could not start Android biometric authentication."
+                                                        showPinFallback = true
+                                                    }
+                                            } else {
+                                                biometricError = "Android biometric authentication is unavailable."
+                                                showPinFallback = true
+                                            }
                                         }
                                         .padding(horizontal = 16.dp, vertical = 15.dp)
                                 )
                                 Spacer(Modifier.height(12.dp))
-                            } else if (biometricStatus == BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED) {
+                                if (!showPinFallback) {
+                                    Text(
+                                        "PIN FALLBACK APPEARS ONLY AFTER BIOMETRIC AUTHENTICATION FAILS.",
+                                        color = colors.inkMuted,
+                                        fontSize = 9.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                }
+                            } else {
                                 Text(
-                                    "Enroll fingerprint or face in Android Settings to enable biometric unlock.",
+                                    if (biometricStatus == BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED) {
+                                        "No fingerprint or face is enrolled. Enter your PIN or enroll biometrics in Android Settings."
+                                    } else {
+                                        "Biometric unlock is unavailable. Enter your PIN."
+                                    },
                                     color = colors.inkSecondary,
                                     fontSize = 11.sp,
                                     textAlign = TextAlign.Center
@@ -210,42 +244,51 @@ fun CyberLockScreenDialog(store: LauncherFeatureStore, onDismiss: () -> Unit) {
                                 Spacer(Modifier.height(8.dp))
                             }
 
-                            Text("OR ENTER YOUR PIN", color = colors.inkPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Spacer(Modifier.height(8.dp))
-                            BasicTextField(
-                                value = entered,
-                                onValueChange = { if (it.length <= 8 && it.all { char -> char.isDigit() }) entered = it },
-                                singleLine = true,
-                                visualTransformation = PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                                textStyle = TextStyle(color = colors.inkPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
-                                cursorBrush = SolidColor(colors.inkPrimary),
-                                modifier = Modifier.widthIn(min = 200.dp).background(colors.surface).border(1.dp, colors.border).padding(horizontal = 16.dp, vertical = 14.dp),
-                                decorationBox = { inner ->
-                                    Box(contentAlignment = Alignment.Center) {
-                                        if (entered.isEmpty()) Text("Enter PIN", color = colors.inkMuted, fontSize = 16.sp)
-                                        inner()
+                            if (!biometricAvailable || showPinFallback) {
+                                Text(
+                                    if (biometricAvailable) "PIN FALLBACK" else "ENTER YOUR PIN",
+                                    color = colors.inkPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                BasicTextField(
+                                    value = entered,
+                                    onValueChange = {
+                                        if (it.length <= 8 && it.all { char -> char.isDigit() }) entered = it
+                                    },
+                                    singleLine = true,
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                                    textStyle = TextStyle(color = colors.inkPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+                                    cursorBrush = SolidColor(colors.inkPrimary),
+                                    modifier = Modifier.widthIn(min = 200.dp).background(colors.surface).border(1.dp, colors.border).padding(horizontal = 16.dp, vertical = 14.dp),
+                                    decorationBox = { inner ->
+                                        Box(contentAlignment = Alignment.Center) {
+                                            if (entered.isEmpty()) Text("Enter PIN", color = colors.inkMuted, fontSize = 16.sp)
+                                            inner()
+                                        }
                                     }
+                                )
+                                Spacer(Modifier.height(10.dp))
+                                if (error.isNotBlank()) {
+                                    Text(error, color = colors.inkSecondary, fontSize = 12.sp, textAlign = TextAlign.Center)
+                                    Spacer(Modifier.height(6.dp))
                                 }
-                            )
-                            Spacer(Modifier.height(10.dp))
-                            if (error.isNotBlank()) {
-                                Text(error, color = colors.inkSecondary, fontSize = 12.sp, textAlign = TextAlign.Center)
-                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    "UNLOCK",
+                                    color = colors.background,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                        .background(colors.inkPrimary)
+                                        .clickable {
+                                            if (store.verifyLockscreenPin(entered)) onDismiss() else error = "Incorrect PIN. Try again."
+                                        }
+                                        .padding(vertical = 14.dp)
+                                )
                             }
-                            Text(
-                                "UNLOCK",
-                                color = colors.background,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                                    .background(colors.inkPrimary)
-                                    .clickable {
-                                        if (store.verifyLockscreenPin(entered)) onDismiss() else error = "Incorrect PIN. Try again."
-                                    }
-                                    .padding(vertical = 14.dp)
-                            )
                         }
                     }
                 }
