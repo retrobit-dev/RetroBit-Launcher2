@@ -354,16 +354,6 @@ fun SettingsPanelDialog(
                         )
                     }
                     3 -> {
-                        SectionLabel("VOICE // ID / EN")
-                        SettingAction(
-                            title = "VOICE LANGUAGE: ${store.voiceLanguage}",
-                            detail = "Tap to switch between Indonesian and English speech recognition.",
-                            onClick = {
-                                store.voiceLanguage = if (store.voiceLanguage.startsWith("id")) "en-US" else "id-ID"
-                                statusMessage = "Voice language: ${store.voiceLanguage}"
-                            }
-                        )
-                        Text("Commands: search/cari, open/buka app, theme/tema, show apps, refresh, matrix, tiles, todo, calendar, help.", color = colors.inkMuted, fontSize = 9.sp)
                         SectionLabel("WEATHER + NETWORK")
                         SettingAction("CONFIGURE WEATHER CITY", "Uses live Open-Meteo data; tap to set the city.", onConfigureWeather)
                         Text("LIVE NETWORK: ${rememberNetworkStatus()}", color = colors.inkSecondary, fontSize = 9.sp)

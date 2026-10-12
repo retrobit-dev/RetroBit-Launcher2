@@ -419,72 +419,6 @@ fun MainLauncherScreen(
         }
     }
 
-    fun handleVoiceCommand(spoken: String) {
-        val command = spoken.trim().lowercase()
-        when {
-            command == "home" || command == "beranda" -> returnHome()
-            command == "matrix" || command.contains("matrix rain") || command.contains("hujan matrix") -> {
-                isMatrixRainOpen = true
-            }
-            command in setOf("tiles", "quick settings", "kontrol cepat", "quick controls") -> {
-                isQuickControlsOpen = true
-            }
-            command in setOf("todo", "to do", "daftar tugas", "tugas") -> isTodoOpen = true
-            command in setOf("calendar", "kalender", "agenda") -> isCalendarOpen = true
-            command in setOf("settings", "pengaturan", "konfigurasi") -> isSettingsOpen = true
-            command in setOf("weather", "cuaca") -> isWeatherConfigOpen = true
-            command in setOf("help", "bantuan", "perintah") -> {
-                isTerminalOpen = true
-            }
-            command in setOf("refresh", "segarkan", "refresh layar") -> isEpaperRefreshing = true
-            command in setOf("show apps", "tampilkan aplikasi", "buka daftar aplikasi", "daftar aplikasi") -> openAppDrawer()
-            command.startsWith("cari ") || command.startsWith("search ") -> {
-                openAppDrawer()
-                searchQuery = command.substringAfter(' ')
-                registerInteraction()
-            }
-            command.startsWith("tema ") || command.startsWith("theme ") -> {
-                val theme = command.substringAfter(' ')
-                val next = when (theme) {
-                    "terang", "light", "paper" -> RetroBitThemeMode.LIGHT_EINK
-                    "gelap", "dark", "onyx" -> RetroBitThemeMode.DARK_EINK
-                    "pocket", "gameboy" -> RetroBitThemeMode.POCKET_90S
-                    "stark", "noir" -> RetroBitThemeMode.STARK_1BIT
-                    else -> null
-                }
-                if (next != null) {
-                    onThemeChange(next)
-                    isEpaperRefreshing = true
-                } else {
-                    openAppDrawer()
-                    searchQuery = spoken
-                }
-            }
-            command.startsWith("buka ") || command.startsWith("open ") -> {
-                val appQuery = command.substringAfter(' ')
-                if (appQuery in setOf("daftar", "apps", "aplikasi")) {
-                    openAppDrawer()
-                } else {
-                    val match = allApps
-                        .mapNotNull { app -> FuzzySearch.score(appQuery, app.displayLabel)?.let { app to it } }
-                        .maxByOrNull { it.second }
-                    if (match != null && match.second >= 250) {
-                        launchAppWithPolicies(match.first)
-                    } else {
-                        openAppDrawer()
-                        searchQuery = appQuery
-                        registerInteraction()
-                    }
-                }
-            }
-            else -> {
-                openAppDrawer()
-                searchQuery = spoken
-                registerInteraction()
-            }
-        }
-    }
-
     // Attach active notification preview to apps
     val appsWithNotifications = remember(allApps, notificationsByPackage) {
         allApps.map { app ->
@@ -682,7 +616,6 @@ fun MainLauncherScreen(
                         modifier = Modifier.clickable { searchQuery = "" }
                     )
                 }
-                VoiceCommandButton(onRecognized = ::handleVoiceCommand)
                 }
             }
 

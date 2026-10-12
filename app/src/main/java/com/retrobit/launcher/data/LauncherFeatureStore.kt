@@ -69,10 +69,6 @@ class LauncherFeatureStore(context: Context) {
         get() = prefs.getString(KEY_THEME_MODE, "LIGHT_EINK") ?: "LIGHT_EINK"
         set(value) { prefs.edit().putString(KEY_THEME_MODE, value).apply() }
 
-    var voiceLanguage: String
-        get() = prefs.getString(KEY_VOICE_LANGUAGE, "id-ID") ?: "id-ID"
-        set(value) { prefs.edit().putString(KEY_VOICE_LANGUAGE, value).apply() }
-
     var focusModeEnabled: Boolean
         get() = prefs.getBoolean(KEY_FOCUS_MODE, false)
         set(value) { prefs.edit().putBoolean(KEY_FOCUS_MODE, value).apply() }
@@ -504,7 +500,6 @@ class LauncherFeatureStore(context: Context) {
     companion object {
         private const val KEY_WEATHER_CITY = "feature_weather_city"
         private const val KEY_THEME_MODE = "feature_theme_mode"
-        private const val KEY_VOICE_LANGUAGE = "voice_language"
         private const val KEY_FOCUS_MODE = "feature_focus_mode"
         private const val KEY_ICON_SIZE = "feature_icon_size"
         private const val KEY_LAUNCHER_TEXT_SCALE = "feature_launcher_text_scale"
