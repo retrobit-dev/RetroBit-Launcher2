@@ -3,13 +3,17 @@ package com.retrobit.launcher.ui
 import android.app.Activity
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -330,6 +334,34 @@ fun MainLauncherScreen(
             favorites = list.filter { it.isFavorite && !it.isHidden }
         }
     }
+    val currentRefreshApps = rememberUpdatedState(refreshApps)
+
+    DisposableEffect(context) {
+        val packageChangedReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    Intent.ACTION_PACKAGE_ADDED,
+                    Intent.ACTION_PACKAGE_REMOVED,
+                    Intent.ACTION_PACKAGE_CHANGED,
+                    Intent.ACTION_PACKAGE_REPLACED -> currentRefreshApps.value()
+                }
+            }
+        }
+        val packageFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addAction(Intent.ACTION_PACKAGE_CHANGED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
+            addDataScheme("package")
+        }
+        ContextCompat.registerReceiver(
+            context,
+            packageChangedReceiver,
+            packageFilter,
+            ContextCompat.RECEIVER_EXPORTED
+        )
+        onDispose { context.unregisterReceiver(packageChangedReceiver) }
+    }
 
     val appIconImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         val app = pendingAppIconImage
@@ -508,6 +540,7 @@ fun MainLauncherScreen(
     }
 
     fun triggerRefreshCycle() {
+        refreshApps()
         isEpaperRefreshing = true
     }
 
