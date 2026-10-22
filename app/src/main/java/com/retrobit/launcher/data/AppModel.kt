@@ -17,6 +17,7 @@ data class AppModel(
     val categoryTag: String = "NODE",
     val screentimeText: String = "5m",
     val notificationPreview: String? = null,
+    val notificationCount: Int = 0,
     val subtext: String = ""
 ) {
     val displayLabel: String

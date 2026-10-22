@@ -11,15 +11,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * Service untuk memantau notifikasi masuk dan menampilkan ringkasan preview
- * tepat di bawah nama aplikasi pada daftar favorit (seperti pada Niagara Launcher).
- */
+data class PackageNotificationSummary(
+    val count: Int,
+    val preview: String?
+)
+
+/** Tracks active notifications for app-icon badges and short drawer previews. */
 class NotificationMonitorService : NotificationListenerService() {
 
     companion object {
-        private val _activeNotifications = MutableStateFlow<Map<String, String>>(emptyMap())
-        val activeNotifications: StateFlow<Map<String, String>> = _activeNotifications.asStateFlow()
+        private val _packageNotificationSummaries = MutableStateFlow<Map<String, PackageNotificationSummary>>(emptyMap())
+        val packageNotificationSummaries: StateFlow<Map<String, PackageNotificationSummary>> =
+            _packageNotificationSummaries.asStateFlow()
 
         fun isPermissionGranted(context: Context): Boolean {
             val enabledListeners = Settings.Secure.getString(
@@ -40,48 +43,89 @@ class NotificationMonitorService : NotificationListenerService() {
         }
     }
 
+    private data class ActiveNotificationRecord(
+        val packageName: String,
+        val postTime: Long,
+        val preview: String?,
+        val badgeCount: Int
+    )
+
+    private val notificationLock = Any()
+    private val notificationsByKey = mutableMapOf<String, ActiveNotificationRecord>()
+
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
-        sbn?.let {
-            val pkg = it.packageName
-            val extras = it.notification.extras
-            val title = extras.getString(Notification.EXTRA_TITLE) ?: ""
-            val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
-
-            if (text.isNotBlank()) {
-                val preview = if (title.isNotBlank()) "$title: \"$text\"" else "\"$text\""
-                val current = _activeNotifications.value.toMutableMap()
-                current[pkg] = preview
-                _activeNotifications.value = current
-            }
+        sbn ?: return
+        synchronized(notificationLock) {
+            notificationsByKey[sbn.key] = sbn.toRecord()
+            publishSummariesLocked()
         }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         super.onNotificationRemoved(sbn)
-        sbn?.let {
-            val pkg = it.packageName
-            val current = _activeNotifications.value.toMutableMap()
-            current.remove(pkg)
-            _activeNotifications.value = current
+        sbn ?: return
+        synchronized(notificationLock) {
+            notificationsByKey.remove(sbn.key)
+            publishSummariesLocked()
         }
     }
 
     override fun onListenerConnected() {
         super.onListenerConnected()
-        try {
-            val notifications = activeNotifications ?: return
-            val map = mutableMapOf<String, String>()
-            for (sbn in activeNotifications) {
-                val pkg = sbn.packageName
-                val extras = sbn.notification.extras
-                val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
-                if (!text.isNullOrBlank()) {
-                    val title = extras.getString(Notification.EXTRA_TITLE) ?: ""
-                    map[pkg] = if (title.isNotBlank()) "$title: \"$text\"" else "\"$text\""
-                }
+        val snapshot = runCatching { activeNotifications?.toList().orEmpty() }.getOrDefault(emptyList())
+        synchronized(notificationLock) {
+            notificationsByKey.clear()
+            snapshot.forEach { notificationsByKey[it.key] = it.toRecord() }
+            publishSummariesLocked()
+        }
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        synchronized(notificationLock) {
+            notificationsByKey.clear()
+            publishSummariesLocked()
+        }
+    }
+
+    private fun StatusBarNotification.toRecord(): ActiveNotificationRecord {
+        val postedNotification = this.notification
+        val extras = postedNotification.extras
+        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim().orEmpty()
+        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim().orEmpty()
+        val preview = text.takeIf { it.isNotBlank() }?.let {
+            if (title.isNotBlank()) "$title: \"$it\"" else "\"$it\""
+        }
+        val badgeSuppressionFlags =
+            Notification.FLAG_ONGOING_EVENT or Notification.FLAG_FOREGROUND_SERVICE or Notification.FLAG_GROUP_SUMMARY
+        val countsTowardBadge = (postedNotification.flags and badgeSuppressionFlags) == 0
+        val badgeCount = if (countsTowardBadge) postedNotification.number.takeIf { it > 0 } ?: 1 else 0
+
+        return ActiveNotificationRecord(
+            packageName = this.packageName,
+            postTime = this.postTime,
+            preview = preview,
+            badgeCount = badgeCount
+        )
+    }
+
+    /** Must be called with [notificationLock] held. */
+    private fun publishSummariesLocked() {
+        val summaries = notificationsByKey.values
+            .groupBy { it.packageName }
+            .mapValues { (_, notifications) ->
+                val preview = notifications
+                    .asSequence()
+                    .filter { !it.preview.isNullOrBlank() }
+                    .maxByOrNull { it.postTime }
+                    ?.preview
+                PackageNotificationSummary(
+                    count = notifications.sumOf { it.badgeCount },
+                    preview = preview
+                )
             }
-            _activeNotifications.value = map
-        } catch (e: Exception) {}
+            .filterValues { it.count > 0 || !it.preview.isNullOrBlank() }
+        _packageNotificationSummaries.value = summaries
     }
 }

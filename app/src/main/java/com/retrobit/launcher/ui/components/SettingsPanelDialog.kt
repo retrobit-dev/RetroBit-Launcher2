@@ -45,6 +45,7 @@ fun SettingsPanelDialog(
     apps: List<AppModel>,
     currentTheme: RetroBitThemeMode,
     focusModeEnabled: Boolean,
+    notificationBadgesEnabled: Boolean,
     iconSizeDp: Float,
     arcAppListEnabled: Boolean,
     launcherTextScale: Float,
@@ -52,6 +53,7 @@ fun SettingsPanelDialog(
     appDrawerAutoHideDelaySeconds: Int,
     homeSwipeThresholdDp: Float,
     onFocusModeChanged: (Boolean) -> Unit,
+    onNotificationBadgesEnabledChanged: (Boolean) -> Unit,
     onIconSizeChanged: (Float) -> Unit,
     onArcAppListEnabledChanged: (Boolean) -> Unit,
     onLauncherTextScaleChanged: (Float) -> Unit,
@@ -357,8 +359,15 @@ fun SettingsPanelDialog(
                         SectionLabel("WEATHER + NETWORK")
                         SettingAction("CONFIGURE WEATHER CITY", "Uses live Open-Meteo data; tap to set the city.", onConfigureWeather)
                         Text("LIVE NETWORK: ${rememberNetworkStatus()}", color = colors.inkSecondary, fontSize = 9.sp)
+                        SectionLabel("NOTIFICATION BADGES")
+                        ToggleSetting(
+                            "APP ICON BADGES",
+                            "Show active notification counts on Home and in the app drawer. Requires Notification Access.",
+                            notificationBadgesEnabled,
+                            onNotificationBadgesEnabledChanged
+                        )
                         SectionLabel("MEDIA SESSION + NOTIFICATIONS")
-                        SettingAction("OPEN NOTIFICATION ACCESS SETTINGS", "Required for active media sessions and notification previews.") {
+                        SettingAction("OPEN NOTIFICATION ACCESS SETTINGS", "Required for media controls, notification previews, and app badges.") {
                             runCatching { NotificationMonitorService.openPermissionSettings(context) }
                         }
                         SettingAction("QUICK CONTROLS", "Volume, brightness, flashlight, and system connectivity settings.", onOpenQuickControls)

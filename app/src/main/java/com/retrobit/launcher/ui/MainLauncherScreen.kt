@@ -93,6 +93,7 @@ fun MainLauncherScreen(
     var isCurved by remember { mutableStateOf(featureStore.arcAppListEnabled) }
     var isMediaVisible by remember { mutableStateOf(true) }
     var isFocusModeEnabled by remember { mutableStateOf(featureStore.focusModeEnabled) }
+    var notificationBadgesEnabled by remember { mutableStateOf(featureStore.notificationBadgesEnabled) }
     var iconSizeDp by remember { mutableFloatStateOf(featureStore.iconSizeDp) }
     var appDrawerAutoHideDelaySeconds by remember { mutableIntStateOf(featureStore.appDrawerAutoHideDelaySeconds) }
     var homeSwipeThresholdDp by remember { mutableFloatStateOf(featureStore.homeSwipeThresholdDp) }
@@ -324,8 +325,8 @@ fun MainLauncherScreen(
         onDispose { lifecycleOwner?.lifecycle?.removeObserver(observer) }
     }
 
-    // Live Notification Listener Stream (Niagara Preview)
-    val notificationsByPackage by NotificationMonitorService.activeNotifications.collectAsState()
+    // Live notification listener stream for previews and numeric app badges.
+    val notificationsByPackage by NotificationMonitorService.packageNotificationSummaries.collectAsState()
 
     val refreshApps: () -> Unit = {
         scope.launch {
@@ -419,11 +420,23 @@ fun MainLauncherScreen(
         }
     }
 
-    // Attach active notification preview to apps
-    val appsWithNotifications = remember(allApps, notificationsByPackage) {
+    // Attach notification previews and opt-in numeric badges to each app model.
+    val appsWithNotifications = remember(allApps, notificationsByPackage, notificationBadgesEnabled) {
         allApps.map { app ->
-            val notif = notificationsByPackage[app.packageName]
-            if (notif != null) app.copy(notificationPreview = notif) else app
+            val summary = notificationsByPackage[app.packageName]
+            app.copy(
+                notificationPreview = summary?.preview,
+                notificationCount = if (notificationBadgesEnabled) summary?.count ?: 0 else 0
+            )
+        }
+    }
+    val favoritesWithNotifications = remember(favorites, notificationsByPackage, notificationBadgesEnabled) {
+        favorites.map { app ->
+            val summary = notificationsByPackage[app.packageName]
+            app.copy(
+                notificationPreview = summary?.preview,
+                notificationCount = if (notificationBadgesEnabled) summary?.count ?: 0 else 0
+            )
         }
     }
 
@@ -648,7 +661,7 @@ fun MainLauncherScreen(
                     )
                 } else if (isHomeDashboardOpen) {
                     HomeDashboard(
-                        apps = allApps,
+                        apps = appsWithNotifications,
                         homeShortcutPackages = homeShortcutPackages,
                         shortcutSizes = homeShortcutSizes,
                         widgetIds = homeWidgetIds,
@@ -755,7 +768,7 @@ fun MainLauncherScreen(
                     ) {
                         NiagaraCurvedAppList(
                             apps = filteredApps,
-                            favorites = favorites,
+                            favorites = favoritesWithNotifications,
                             searchQuery = searchQuery,
                             selectedCategory = selectedCategory,
                             listState = listState,
@@ -1041,6 +1054,7 @@ fun MainLauncherScreen(
                 apps = allApps,
                 currentTheme = currentTheme,
                 focusModeEnabled = isFocusModeEnabled,
+                notificationBadgesEnabled = notificationBadgesEnabled,
                 iconSizeDp = iconSizeDp,
                 arcAppListEnabled = isCurved,
                 launcherTextScale = launcherTextScale,
@@ -1050,6 +1064,10 @@ fun MainLauncherScreen(
                 onFocusModeChanged = {
                     isFocusModeEnabled = it
                     featureStore.focusModeEnabled = it
+                },
+                onNotificationBadgesEnabledChanged = {
+                    notificationBadgesEnabled = it
+                    featureStore.notificationBadgesEnabled = it
                 },
                 onIconSizeChanged = {
                     iconSizeDp = it

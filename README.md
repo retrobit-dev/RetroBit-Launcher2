@@ -40,8 +40,8 @@
     - Terminal konsol mini untuk menjalankan perintah: `help`, `refresh`, `calc`, `screentime`, `theme [mode]`, `clear`.
 12. **Backup & Restore Konfigurasi:**
     - Ekspor dan impor data launcher (daftar favorit, custom label, aplikasi tersembunyi) dalam format JSON.
-13. **Niagara-Style Inline Notification Preview:**
-    - Mengintegrasikan `NotificationListenerService` (`NotificationMonitorService.kt`) sehingga pesan/chat yang masuk (seperti WhatsApp, Telegram, Signal) langsung muncul tepat di bawah nama aplikasi di daftar favorit (`» Nama: "Pesan..."`).
+13. **Niagara-Style Inline Notification Preview + App Badges:**
+    - `NotificationListenerService` (`NotificationMonitorService.kt`) menampilkan preview di bawah nama aplikasi serta lencana angka pada ikon aplikasi di Home dan app drawer. Lencana menghitung notifikasi aktif (menggunakan angka yang disediakan aplikasi jika tersedia), mengabaikan notifikasi ongoing dan group summary, dan bukan jaminan jumlah pesan yang belum dibaca. Atur lencana di `SETTINGS` → `SERVICES`; akses notifikasi tetap harus diizinkan di Android.
 14. **ICE Breaker / Mindful Delay Pause (Digital Detox Anti-Kecanduan):**
     - Tambahkan jeda sadar 5–15 detik sebelum membuka aplikasi yang mencandu (seperti media sosial/game), meredakan impuls refleks membuka aplikasi tanpa sadar.
 15. **Auto-Build APK via GitHub Actions CI/CD:**

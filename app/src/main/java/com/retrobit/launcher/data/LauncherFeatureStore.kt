@@ -73,6 +73,10 @@ class LauncherFeatureStore(context: Context) {
         get() = prefs.getBoolean(KEY_FOCUS_MODE, false)
         set(value) { prefs.edit().putBoolean(KEY_FOCUS_MODE, value).apply() }
 
+    var notificationBadgesEnabled: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFICATION_BADGES_ENABLED, true)
+        set(value) { prefs.edit().putBoolean(KEY_NOTIFICATION_BADGES_ENABLED, value).apply() }
+
     var iconSizeDp: Float
         get() = prefs.getFloat(KEY_ICON_SIZE, 42f).coerceIn(28f, 72f)
         set(value) { prefs.edit().putFloat(KEY_ICON_SIZE, value.coerceIn(28f, 72f)).apply() }
@@ -501,6 +505,7 @@ class LauncherFeatureStore(context: Context) {
         private const val KEY_WEATHER_CITY = "feature_weather_city"
         private const val KEY_THEME_MODE = "feature_theme_mode"
         private const val KEY_FOCUS_MODE = "feature_focus_mode"
+        private const val KEY_NOTIFICATION_BADGES_ENABLED = "notification_badges_enabled"
         private const val KEY_ICON_SIZE = "feature_icon_size"
         private const val KEY_LAUNCHER_TEXT_SCALE = "feature_launcher_text_scale"
         private const val KEY_DRAWER_AUTO_HIDE_ENABLED = "app_drawer_auto_hide_enabled"

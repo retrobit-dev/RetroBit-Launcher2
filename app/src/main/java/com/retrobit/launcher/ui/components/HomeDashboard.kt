@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -1087,6 +1088,10 @@ private fun HomeShortcutTile(
             } else {
                 Text(app.displayLabel.take(2).uppercase(), color = colors.inkPrimary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             }
+            NotificationCountBadge(
+                count = app.notificationCount,
+                modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)
+            )
         }
     }
 

@@ -225,6 +225,10 @@ fun AppListItem(
                     color = colors.inkPrimary
                 )
             }
+            NotificationCountBadge(
+                count = app.notificationCount,
+                modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)
+            )
         }
 
         Spacer(Modifier.width(8.dp))
