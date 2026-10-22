@@ -85,6 +85,9 @@ fun SettingsPanelDialog(
     val usageRepository = remember(context) { UsageStatsRepository(context) }
     var hasUsageAccess by remember { mutableStateOf(usageRepository.hasUsageAccess()) }
     var usageSummary by remember { mutableStateOf("—") }
+    var hasNotificationAccess by remember(context) {
+        mutableStateOf(NotificationMonitorService.isPermissionGranted(context))
+    }
     var lockscreenEnabled by remember { mutableStateOf(store.lockscreenEnabled) }
     var pinDraft by remember { mutableStateOf("") }
     var lockscreenWidgetModules by remember(store) {
@@ -94,6 +97,7 @@ fun SettingsPanelDialog(
     var swipeUpAction by remember { mutableStateOf(store.homeSwipeUpAction) }
     var swipeDownAction by remember { mutableStateOf(store.homeSwipeDownAction) }
     var deviceAdminActive by remember(context) { mutableStateOf(DeviceLockController.isAdminActive(context)) }
+    val latestNotificationBadgesEnabled by rememberUpdatedState(notificationBadgesEnabled)
     val iconPacks = remember(context) { IconPackManager(context).installedPacks() }
 
     LaunchedEffect(Unit) {
@@ -107,6 +111,15 @@ fun SettingsPanelDialog(
             }
             hasUsageAccess = usage.first
             usageSummary = usage.second
+            val notificationAccess = NotificationMonitorService.isPermissionGranted(context)
+            if (notificationAccess && !hasNotificationAccess) {
+                statusMessage = if (latestNotificationBadgesEnabled) {
+                    "Notification Access enabled. App badges are ready."
+                } else {
+                    "Notification Access enabled. Turn on APP ICON BADGES to display badges."
+                }
+            }
+            hasNotificationAccess = notificationAccess
             deviceAdminActive = DeviceLockController.isAdminActive(context)
             kotlinx.coroutines.delay(5_000)
         }
@@ -362,14 +375,32 @@ fun SettingsPanelDialog(
                         SectionLabel("NOTIFICATION BADGES")
                         ToggleSetting(
                             "APP ICON BADGES",
-                            "Show active notification counts on Home and in the app drawer. Requires Notification Access.",
-                            notificationBadgesEnabled,
-                            onNotificationBadgesEnabledChanged
-                        )
-                        SectionLabel("MEDIA SESSION + NOTIFICATIONS")
-                        SettingAction("OPEN NOTIFICATION ACCESS SETTINGS", "Required for media controls, notification previews, and app badges.") {
-                            runCatching { NotificationMonitorService.openPermissionSettings(context) }
+                            "Show active counts on Home and in the app drawer. Enabling opens Android settings if access is missing.",
+                            notificationBadgesEnabled
+                        ) { enabled ->
+                            onNotificationBadgesEnabledChanged(enabled)
+                            if (enabled && !NotificationMonitorService.isPermissionGranted(context)) {
+                                statusMessage = "Enable RetroBit in Android Notification Access settings, then return here."
+                                runCatching { NotificationMonitorService.openPermissionSettings(context) }
+                                    .onFailure { statusMessage = "Could not open Notification Access settings." }
+                            } else {
+                                statusMessage = if (enabled) "App notification badges enabled." else "App notification badges disabled."
+                            }
                         }
+                        SectionLabel("MEDIA SESSION + NOTIFICATIONS")
+                        SettingAction(
+                            title = if (hasNotificationAccess) "NOTIFICATION ACCESS: ENABLED · MANAGE" else "GRANT NOTIFICATION ACCESS",
+                            detail = if (hasNotificationAccess) "Access is enabled. Tap to review or revoke it in Android settings." else "Required for media controls, previews, and app badges.",
+                            onClick = {
+                                statusMessage = if (hasNotificationAccess) {
+                                    "Review RetroBit access in Android Notification Access settings."
+                                } else {
+                                    "Enable RetroBit in Android Notification Access settings, then return here."
+                                }
+                                runCatching { NotificationMonitorService.openPermissionSettings(context) }
+                                    .onFailure { statusMessage = "Could not open Notification Access settings." }
+                            }
+                        )
                         SettingAction("QUICK CONTROLS", "Volume, brightness, flashlight, and system connectivity settings.", onOpenQuickControls)
                     }
                     else -> {

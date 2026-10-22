@@ -1,6 +1,7 @@
 package com.retrobit.launcher.data
 
 import android.app.Notification
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -29,7 +30,9 @@ class NotificationMonitorService : NotificationListenerService() {
                 context.contentResolver,
                 "enabled_notification_listeners"
             ) ?: ""
-            return enabledListeners.contains(context.packageName)
+            return enabledListeners.split(':').any { flattenedComponent ->
+                ComponentName.unflattenFromString(flattenedComponent)?.packageName == context.packageName
+            }
         }
 
         fun openPermissionSettings(context: Context) {

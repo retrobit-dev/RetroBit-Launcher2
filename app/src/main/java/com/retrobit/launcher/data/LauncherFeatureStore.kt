@@ -74,7 +74,7 @@ class LauncherFeatureStore(context: Context) {
         set(value) { prefs.edit().putBoolean(KEY_FOCUS_MODE, value).apply() }
 
     var notificationBadgesEnabled: Boolean
-        get() = prefs.getBoolean(KEY_NOTIFICATION_BADGES_ENABLED, true)
+        get() = prefs.getBoolean(KEY_NOTIFICATION_BADGES_ENABLED, false)
         set(value) { prefs.edit().putBoolean(KEY_NOTIFICATION_BADGES_ENABLED, value).apply() }
 
     var iconSizeDp: Float
