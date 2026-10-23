@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -24,6 +25,12 @@ class NotificationMonitorService : NotificationListenerService() {
         private val _packageNotificationSummaries = MutableStateFlow<Map<String, PackageNotificationSummary>>(emptyMap())
         val packageNotificationSummaries: StateFlow<Map<String, PackageNotificationSummary>> =
             _packageNotificationSummaries.asStateFlow()
+
+        private val whatsappPackages = setOf("com.whatsapp", "com.whatsapp.w4b")
+        private val whatsappMessageCountPattern = Regex(
+            """^\s*(?:whatsapp(?:\s+business)?(?:\s*[:·•–—-]\s*|\s+))?(\d{1,5})\s*(?:new\s+)?(?:messages?|msgs?|pesan)\b""",
+            RegexOption.IGNORE_CASE
+        )
 
         fun isPermissionGranted(context: Context): Boolean {
             val enabledListeners = Settings.Secure.getString(
@@ -50,7 +57,8 @@ class NotificationMonitorService : NotificationListenerService() {
         val packageName: String,
         val postTime: Long,
         val preview: String?,
-        val badgeCount: Int
+        val badgeCount: Int,
+        val isGroupSummary: Boolean
     )
 
     private val notificationLock = Any()
@@ -100,33 +108,83 @@ class NotificationMonitorService : NotificationListenerService() {
         val preview = text.takeIf { it.isNotBlank() }?.let {
             if (title.isNotBlank()) "$title: \"$it\"" else "\"$it\""
         }
-        val badgeSuppressionFlags =
-            Notification.FLAG_ONGOING_EVENT or Notification.FLAG_FOREGROUND_SERVICE or Notification.FLAG_GROUP_SUMMARY
-        val countsTowardBadge = (postedNotification.flags and badgeSuppressionFlags) == 0
-        val badgeCount = if (countsTowardBadge) postedNotification.number.takeIf { it > 0 } ?: 1 else 0
+        val flags = postedNotification.flags
+        val isGroupSummary = (flags and Notification.FLAG_GROUP_SUMMARY) != 0
+        val isOngoing = (flags and (Notification.FLAG_ONGOING_EVENT or Notification.FLAG_FOREGROUND_SERVICE)) != 0
+        val isWhatsApp = this.packageName in whatsappPackages
+        val messagingMessageCount = extras.getParcelableArray(Notification.EXTRA_MESSAGES)?.size ?: 0
+        val summaryCount = if (isWhatsApp) {
+            whatsappSummaryCount(extras, isGroupSummary, allowMessageText = messagingMessageCount == 0)
+        } else null
+        val appProvidedCount = postedNotification.number.takeIf { it > 0 }
+        val whatsappEstimate = summaryCount
+            ?: maxOf(appProvidedCount ?: 0, messagingMessageCount).takeIf { it > 0 }
+        val badgeCount = when {
+            isOngoing -> 0
+            isWhatsApp -> whatsappEstimate ?: if (isGroupSummary) 0 else 1
+            isGroupSummary -> 0
+            else -> appProvidedCount ?: 1
+        }
 
         return ActiveNotificationRecord(
             packageName = this.packageName,
             postTime = this.postTime,
             preview = preview,
-            badgeCount = badgeCount
+            badgeCount = badgeCount,
+            isGroupSummary = isGroupSummary
         )
+    }
+
+    private fun whatsappSummaryCount(
+        extras: Bundle,
+        isGroupSummary: Boolean,
+        allowMessageText: Boolean
+    ): Int? {
+        val candidates = mutableListOf<String>()
+        listOf(
+            Notification.EXTRA_SUMMARY_TEXT,
+            Notification.EXTRA_TITLE,
+            Notification.EXTRA_SUB_TEXT
+        ).forEach { key ->
+            extras.getCharSequence(key)?.toString()?.let(candidates::add)
+        }
+        if (isGroupSummary) {
+            extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.forEach { candidates += it.toString() }
+        }
+        if (isGroupSummary || allowMessageText) {
+            extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.let(candidates::add)
+            extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.let(candidates::add)
+        }
+        return candidates.firstNotNullOfOrNull { candidate ->
+            whatsappMessageCountPattern.find(candidate.trim())
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.toIntOrNull()
+                ?.takeIf { it > 0 }
+        }
     }
 
     /** Must be called with [notificationLock] held. */
     private fun publishSummariesLocked() {
         val summaries = notificationsByKey.values
             .groupBy { it.packageName }
-            .mapValues { (_, notifications) ->
+            .mapValues { (packageName, notifications) ->
                 val preview = notifications
                     .asSequence()
                     .filter { !it.preview.isNullOrBlank() }
                     .maxByOrNull { it.postTime }
                     ?.preview
-                PackageNotificationSummary(
-                    count = notifications.sumOf { it.badgeCount },
-                    preview = preview
-                )
+                val childCount = notifications.filterNot { it.isGroupSummary }.sumOf { it.badgeCount }
+                val count = if (packageName in whatsappPackages) {
+                    val groupSummaryCount = notifications
+                        .asSequence()
+                        .filter { it.isGroupSummary }
+                        .maxOfOrNull { it.badgeCount } ?: 0
+                    maxOf(groupSummaryCount, childCount)
+                } else {
+                    childCount
+                }
+                PackageNotificationSummary(count = count, preview = preview)
             }
             .filterValues { it.count > 0 || !it.preview.isNullOrBlank() }
         _packageNotificationSummaries.value = summaries

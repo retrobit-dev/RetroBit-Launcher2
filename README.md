@@ -41,7 +41,7 @@
 12. **Backup & Restore Konfigurasi:**
     - Ekspor dan impor data launcher (daftar favorit, custom label, aplikasi tersembunyi) dalam format JSON.
 13. **Niagara-Style Inline Notification Preview + App Badges:**
-    - `NotificationListenerService` (`NotificationMonitorService.kt`) menampilkan preview di bawah nama aplikasi serta lencana angka pada ikon aplikasi di Home dan app drawer. Lencana menghitung notifikasi aktif (menggunakan angka yang disediakan aplikasi jika tersedia), mengabaikan notifikasi ongoing dan group summary, dan bukan jaminan jumlah pesan yang belum dibaca. Aktifkan di `SETTINGS` → `SERVICES`; jika akses belum diberikan, RetroBit membuka halaman khusus Notification Access Android untuk persetujuan manual.
+    - `NotificationListenerService` (`NotificationMonitorService.kt`) menampilkan preview di bawah nama aplikasi serta lencana angka pada ikon aplikasi di Home dan app drawer. WhatsApp mendapat estimasi tambahan dari angka notifikasi, ringkasan pesan, atau metadata `MessagingStyle`; notifikasi group summary dibandingkan dengan notifikasi anak agar tidak dihitung ganda. Estimasi ini bukan sumber resmi jumlah pesan belum dibaca dan bisa berbeda dari angka internal WhatsApp. Aktifkan di `SETTINGS` → `SERVICES`; jika akses belum diberikan, RetroBit membuka halaman khusus Notification Access Android untuk persetujuan manual.
 14. **ICE Breaker / Mindful Delay Pause (Digital Detox Anti-Kecanduan):**
     - Tambahkan jeda sadar 5–15 detik sebelum membuka aplikasi yang mencandu (seperti media sosial/game), meredakan impuls refleks membuka aplikasi tanpa sadar.
 15. **Auto-Build APK via GitHub Actions CI/CD:**

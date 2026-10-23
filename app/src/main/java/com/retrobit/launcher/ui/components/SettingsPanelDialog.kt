@@ -375,7 +375,7 @@ fun SettingsPanelDialog(
                         SectionLabel("NOTIFICATION BADGES")
                         ToggleSetting(
                             "APP ICON BADGES",
-                            "Show active counts on Home and in the app drawer. Enabling opens Android settings if access is missing.",
+                            "Show active counts on Home and in the app drawer. WhatsApp counts are estimates; enabling opens Android settings if access is missing.",
                             notificationBadgesEnabled
                         ) { enabled ->
                             onNotificationBadgesEnabledChanged(enabled)
